@@ -6,12 +6,13 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, w
 // Firebase Configuration and Initialization
 // IMPORTANT: Replace this with your own Firebase config object!
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDBSnP8kcNiXs9j490Xs8w2Vos4ZklY9FE",
+  authDomain: "murder-mystery-kabali.firebaseapp.com",
+  projectId: "murder-mystery-kabali",
+  storageBucket: "murder-mystery-kabali.firebasestorage.app",
+  messagingSenderId: "412262393697",
+  appId: "1:412262393697:web:19133180557995c6480720",
+  measurementId: "G-PZTEMJN0LB"
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
