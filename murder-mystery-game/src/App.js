@@ -46,7 +46,7 @@ function App() {
   const [unreadPrivateChats, setUnreadPrivateChats] = useState({}); // Shape: { [chatId]: count }
   const [activeTab, setActiveTab] = useState('overview'); // Centralize active tab state
 
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
   const addNotification = React.useCallback((message) => {
     const id = Date.now();
@@ -88,11 +88,7 @@ function App() {
     const signIn = async () => {
       if (!currentUser && isAuthReady) {
         try {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
+          await signInAnonymously(auth);
         } catch (error) {
           console.error("Error signing in:", error);
           try {
@@ -822,7 +818,7 @@ function ClueDetailModal({ clue, isUnlocked, characters, onClose, onToggleClue }
 function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActiveTab, activeTab }) {
   const { gameId, showModalMessage, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats } = useContext(AuthContext);
   const { clueStates, playersInGame } = useContext(GameContext);
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
   const currentRound = gameDetails?.currentRound || 1;
   const characters = gameDetails?.characters || {};
@@ -1213,7 +1209,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
 function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
   const { userId, gameId, characterId, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats } = useContext(AuthContext);
   const { clueStates, playersInGame } = useContext(GameContext);
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
   const [isVictimDossierOpen, setIsVictimDossierOpen] = useState(false);
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
@@ -1530,7 +1526,7 @@ function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
 function PublicBoard() {
     const { userId, isHost, gameId, characterId, showConfirmation, showModalMessage } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
@@ -1648,7 +1644,7 @@ function PublicBoard() {
 function PrivateChat() {
     const { userId, isHost, gameId, characterId, showModalMessage, setUnreadPrivateChats } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
     const [selectedChat, setSelectedChat] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
@@ -1933,7 +1929,7 @@ function ConfirmationModal({ message, onConfirm, onCancel }) {
 function VotingScreen() {
     const { userId, gameId, showModalMessage } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
     const myPlayer = playersInGame.find(p => p.id === userId);
 
     const handleVote = async (accusedId) => {
@@ -2042,7 +2038,7 @@ function RevealScreen({ handleFinishGame }) {
 function HostVotingDashboard() {
     const { gameId, showConfirmation } = useContext(AuthContext);
     const { playersInGame } = useContext(GameContext);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
     const allPlayersVoted = playersInGame.every(p => p.votedFor || p.characterId === 'host');
     
