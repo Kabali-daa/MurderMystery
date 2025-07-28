@@ -1067,7 +1067,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
                               characterName={character.name}
                               characterRole={character.role}
                               characterIdpic={character.idpic}
-                              isUnlocked={clueStates[viewingClue.id]?.unlocked || false}
+                              isUnlocked={clueStates[clue.id]?.unlocked || false}
                               onToggleClue={handleToggleClue}
                               onViewClue={handleViewClue}
                           />
