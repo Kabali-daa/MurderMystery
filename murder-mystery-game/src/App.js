@@ -156,31 +156,26 @@ function App() {
   }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
   
   // --- Centralized Notification Listener ---
-  useEffect(() => {
-    if (!gameId || !userId || !gameDetails?.characters) return;
-
-    const myIdentifier = isHost ? userId : characterId;
-    if (!myIdentifier) return;
-
-    const unsubscribers = [];
-    const initialLoadFlags = {};
-
-    // 1. Public Chat Listener
-    const publicMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
-    const qPublic = query(publicMessagesRef, where("timestamp", ">", new Date()));
-    const unsubPublic = onSnapshot(qPublic, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-            if (change.type === "added") {
-                const newMsgData = change.doc.data();
-                if (newMsgData.senderId !== userId) {
-                    if (activeTab !== 'publicBoard') {
-                        setUnreadPublicCount(prev => prev + 1);
-                    }
-                }
+    useEffect(() => {
+    if (userId && gameId && !isHost) {
+        const myPlayerData = playersInGame.find(p => p.id === userId);
+        if (myPlayerData) {
+            // This part is fine: It updates the player's character ID if it changes.
+            if (myPlayerData.characterId !== characterId) {
+                setCharacterId(myPlayerData.characterId || '');
             }
-        });
-    });
-    unsubscribers.push(unsubPublic);
+        } else if (gameDetails && !playersInGame.some(p => p.id === userId)) {
+           // This is the corrected logic.
+           // It now ONLY resets if the player is TRULY no longer in the players list.
+           if (gameId) {
+               setGameId('');
+               setCharacterId('');
+               const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+               updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
+           }
+        }
+    }
+  }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
 
     // 2. Private Chat Listeners
     const generateChatId = (id1, id2) => [id1, id2].sort().join('_');
