@@ -1173,6 +1173,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
       
       {viewingClue && (
         <ClueDetailModal
+       // eslint-disable-next-line no-undef
             clue={viewingClue}
             isUnlocked={clueStates[clue.id]?.unlocked || false}
             characters={characters}
