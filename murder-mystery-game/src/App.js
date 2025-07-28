@@ -1171,15 +1171,15 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
       
       {activeTab === 'privateChats' && <PrivateChat />}
       
-      {viewingClue && (
-        <ClueDetailModal
-            clue={viewingClue}
-            isUnlocked={clueStates[clue.id]?.unlocked || false}
-            characters={characters}
-            onClose={handleCloseClueModal}
-            onToggleClue={handleToggleClue}
-        />
-      )}
+{viewingClue && (
+  <ClueDetailModal
+      clue={viewingClue}
+      isUnlocked={clueStates[viewingClue.id]?.unlocked || false}
+      characters={characters}
+      onClose={handleCloseClueModal}
+      onToggleClue={handleToggleClue}
+  />
+)}
     </div>
   );
 }
