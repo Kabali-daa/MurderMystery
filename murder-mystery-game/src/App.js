@@ -1,7 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, deleteDoc, addDoc, serverTimestamp, query, orderBy, where, limit } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, deleteDoc, addDoc, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
 
 // Firebase Configuration and Initialization
 // IMPORTANT: Replace this with your own Firebase config object!
@@ -14,7 +14,7 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
   measurementId: process.env.REACT_APP_MEASUREMENT_ID
 };
-const app = initializeApp(firebaseConfig);
+onst app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
@@ -87,19 +87,29 @@ function App() {
   }, [appId]);
 
   useEffect(() => {
-  const signIn = async () => {
-    if (!currentUser && isAuthReady) {
-      try {
-        await signInAnonymously(auth);
-      } catch (error) {
-        console.error("Error signing in anonymously:", error);
+    const signIn = async () => {
+      if (!currentUser && isAuthReady) {
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch (error) {
+          console.error("Error signing in:", error);
+          try {
+            await signInAnonymously(auth);
+          } catch (anonError) {
+            console.error("Error signing in anonymously:", anonError);
+          }
+        }
       }
+    };
+    if (isAuthReady) {
+      signIn();
     }
-  };
-  if (isAuthReady) {
-    signIn();
-  }
-}, [isAuthReady, currentUser]);
+  }, [isAuthReady, currentUser]);
+
   useEffect(() => {
     if (gameId && isAuthReady) {
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
@@ -156,26 +166,31 @@ function App() {
   }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
   
   // --- Centralized Notification Listener ---
-    useEffect(() => {
-    if (userId && gameId && !isHost) {
-        const myPlayerData = playersInGame.find(p => p.id === userId);
-        if (myPlayerData) {
-            // This part is fine: It updates the player's character ID if it changes.
-            if (myPlayerData.characterId !== characterId) {
-                setCharacterId(myPlayerData.characterId || '');
+  useEffect(() => {
+    if (!gameId || !userId || !gameDetails?.characters) return;
+
+    const myIdentifier = isHost ? userId : characterId;
+    if (!myIdentifier) return;
+
+    const unsubscribers = [];
+    const initialLoadFlags = {};
+
+    // 1. Public Chat Listener
+    const publicMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+    const qPublic = query(publicMessagesRef, where("timestamp", ">", new Date()));
+    const unsubPublic = onSnapshot(qPublic, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+                const newMsgData = change.doc.data();
+                if (newMsgData.senderId !== userId) {
+                    if (activeTab !== 'publicBoard') {
+                        setUnreadPublicCount(prev => prev + 1);
+                    }
+                }
             }
-        } else if (gameDetails && !playersInGame.some(p => p.id === userId)) {
-           // This is the corrected logic.
-           // It now ONLY resets if the player is TRULY no longer in the players list.
-           if (gameId) {
-               setGameId('');
-               setCharacterId('');
-               const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-               updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
-           }
-        }
-    }
-  }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
+        });
+    });
+    unsubscribers.push(unsubPublic);
 
     // 2. Private Chat Listeners
     const generateChatId = (id1, id2) => [id1, id2].sort().join('_');
@@ -1166,15 +1181,15 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
       
       {activeTab === 'privateChats' && <PrivateChat />}
       
-{viewingClue && (
-  <ClueDetailModal
-      clue={viewingClue}
-      isUnlocked={clueStates[viewingClue.id]?.unlocked || false}
-      characters={characters}
-      onClose={handleCloseClueModal}
-      onToggleClue={handleToggleClue}
-  />
-)}
+      {viewingClue && (
+        <ClueDetailModal
+            clue={viewingClue}
+            isUnlocked={clueStates[viewingClue.id]?.unlocked || false}
+            characters={characters}
+            onClose={handleCloseClueModal}
+            onToggleClue={handleToggleClue}
+        />
+      )}
     </div>
   );
 }
