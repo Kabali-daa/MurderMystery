@@ -45,8 +45,10 @@ function App() {
   const [unreadPublicCount, setUnreadPublicCount] = useState(0);
   const [unreadPrivateChats, setUnreadPrivateChats] = useState({}); // Shape: { [chatId]: count }
   const [activeTab, setActiveTab] = useState('overview'); // Centralize active tab state
+  const [selectedChat, setSelectedChat] = useState(null); // Centralize selected chat state
 
-  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+  // CORRECTED: This should be a simple string, not from process.env for this setup.
+  const appId = 'murder-mystery-game-app';
 
   const addNotification = React.useCallback((message) => {
     const id = Date.now();
@@ -88,7 +90,11 @@ function App() {
     const signIn = async () => {
       if (!currentUser && isAuthReady) {
         try {
-          await signInAnonymously(auth);
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
         } catch (error) {
           console.error("Error signing in:", error);
           try {
@@ -167,6 +173,7 @@ function App() {
     if (!myIdentifier) return;
 
     const unsubscribers = [];
+    const initialLoadFlags = {};
 
     // 1. Public Chat Listener
     const publicMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
@@ -177,7 +184,6 @@ function App() {
                 const newMsgData = change.doc.data();
                 if (newMsgData.senderId !== userId) {
                     if (activeTab !== 'publicBoard') {
-                        addNotification(`New message on the Public Board from ${newMsgData.senderName}`);
                         setUnreadPublicCount(prev => prev + 1);
                     }
                 }
@@ -207,16 +213,20 @@ function App() {
     }
 
     relevantChatIds.forEach(chatId => {
+        initialLoadFlags[chatId] = true;
         const privateMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats/${chatId}/messages`);
         const qPrivate = query(privateMessagesRef, where("timestamp", ">", new Date()));
         const unsubPrivate = onSnapshot(qPrivate, (snapshot) => {
+            if (initialLoadFlags[chatId]) {
+                initialLoadFlags[chatId] = false;
+                return;
+            }
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const newMsgData = change.doc.data();
                     if (newMsgData.senderId !== myIdentifier) {
-                        if (activeTab !== 'privateChat' && activeTab !== 'privateChats') {
-                            const senderName = gameDetails.characters[newMsgData.senderId]?.name || 'Someone';
-                            addNotification(`New private message from ${senderName}`);
+                        const currentlySelectedChatId = isHost ? selectedChat : (selectedChat ? generateChatId(characterId, selectedChat) : null);
+                        if (activeTab !== 'privateChat' && activeTab !== 'privateChats' || chatId !== currentlySelectedChatId) {
                             setUnreadPrivateChats(prev => ({
                                 ...prev,
                                 [chatId]: (prev[chatId] || 0) + 1,
@@ -233,7 +243,7 @@ function App() {
         unsubscribers.forEach(unsub => unsub());
     };
 
-  }, [gameId, userId, characterId, isHost, playersInGame, gameDetails, addNotification, activeTab]);
+  }, [gameId, userId, characterId, isHost, playersInGame, gameDetails, activeTab, selectedChat, appId]);
 
 
   const showModalMessage = (message) => {
@@ -414,25 +424,6 @@ function App() {
     }
   };
 
-  const updateGameContent = async (updatedCharacters, updatedClues) => {
-    if (!gameId || !isHost) {
-      showModalMessage("Only the host can edit game content.");
-      return;
-    }
-    try {
-      const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
-      await setDoc(gameDocRef, {
-        ...gameDetails,
-        characters: updatedCharacters,
-        clues: updatedClues
-      }, { merge: true });
-      showModalMessage("Game content updated successfully!");
-    } catch (e) {
-      console.error("Error updating game content:", e);
-      showModalMessage("Failed to update game content. Please try again.");
-    }
-  };
-
   const handleResetGame = () => {
       showConfirmation(
           "Are you sure you want to end this game for everyone? The game room will be deleted.",
@@ -498,7 +489,7 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats }}>
+    <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat }}>
       <GameContext.Provider value={{ gameDetails, clueStates, playersInGame }}>
        <ScriptLoader />
         <div className="min-h-screen bg-cover bg-center bg-fixed" style={{backgroundImage: "url('https://static.vecteezy.com/system/resources/thumbnails/023/602/482/small_2x/silhouette-of-man-in-old-fashioned-hat-and-coat-at-night-street-generative-ai-photo.jpg')"}}>
@@ -818,7 +809,7 @@ function ClueDetailModal({ clue, isUnlocked, characters, onClose, onToggleClue }
 function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActiveTab, activeTab }) {
   const { gameId, showModalMessage, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats } = useContext(AuthContext);
   const { clueStates, playersInGame } = useContext(GameContext);
-  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+  const appId = 'murder-mystery-game-app';
 
   const currentRound = gameDetails?.currentRound || 1;
   const characters = gameDetails?.characters || {};
@@ -976,9 +967,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
     if (tabName === 'publicBoard') {
       setUnreadPublicCount(0);
     }
-    if (tabName === 'privateChats') {
-      setUnreadPrivateChats({});
-    }
+    // We don't clear all private chats here anymore, it's handled per-chat
     setActiveTab(tabName);
   };
 
@@ -1195,7 +1184,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
       {viewingClue && (
         <ClueDetailModal
             clue={viewingClue}
-            isUnlocked={clueStates[viewingClue.id]?.unlocked || false}
+            isUnlocked={clueStates[clue.id]?.unlocked || false}
             characters={characters}
             onClose={handleCloseClueModal}
             onToggleClue={handleToggleClue}
@@ -1209,7 +1198,7 @@ function HostDashboard({ gameDetails, handleResetGame, showConfirmation, setActi
 function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
   const { userId, gameId, characterId, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats } = useContext(AuthContext);
   const { clueStates, playersInGame } = useContext(GameContext);
-  const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+  const appId = 'murder-mystery-game-app';
 
   const [isVictimDossierOpen, setIsVictimDossierOpen] = useState(false);
   const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
@@ -1223,7 +1212,7 @@ function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
   const allClues = gameDetails?.clues || [];
 
   const timeoutRef = useRef(null);
-  const prevGloballyUnlockedCluesRef = useRef([]);
+  const prevGloballyUnlockedCluesRef = useRef(null);
 
   const totalUnreadPrivate = Object.values(unreadPrivateChats).reduce((acc, count) => acc + count, 0);
 
@@ -1231,9 +1220,7 @@ function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
     if (tabName === 'publicBoard') {
       setUnreadPublicCount(0);
     }
-    if (tabName === 'privateChat') {
-      setUnreadPrivateChats({});
-    }
+    // Individual chat clearing is handled in the PrivateChat component
     setActiveTab(tabName);
   };
   
@@ -1287,7 +1274,7 @@ function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
   // Effect to handle the "NEW" badge timeout
   useEffect(() => {
     const currentUnlockedIds = new Set(globallyUnlockedClues.map(c => c.id));
-    const prevUnlockedIds = new Set(prevGloballyUnlockedCluesRef.current.map(c => c.id));
+    const prevUnlockedIds = prevGloballyUnlockedCluesRef.current ? new Set(prevGloballyUnlockedCluesRef.current.map(c => c.id)) : new Set();
     const newlyRevealedClueIds = [...currentUnlockedIds].filter(id => !prevUnlockedIds.has(id));
 
     if (newlyRevealedClueIds.length > 0) {
@@ -1526,7 +1513,7 @@ function PlayerDashboard({ gameDetails, setActiveTab, activeTab }) {
 function PublicBoard() {
     const { userId, isHost, gameId, characterId, showConfirmation, showModalMessage } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+    const appId = 'murder-mystery-game-app';
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
@@ -1642,10 +1629,9 @@ function PublicBoard() {
 
 // NEW COMPONENT: Private Chat
 function PrivateChat() {
-    const { userId, isHost, gameId, characterId, showModalMessage, setUnreadPrivateChats } = useContext(AuthContext);
+    const { userId, isHost, gameId, characterId, showModalMessage, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
-    const [selectedChat, setSelectedChat] = useState(null);
+    const appId = 'murder-mystery-game-app';
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const messagesEndRef = useRef(null);
@@ -1729,10 +1715,16 @@ function PrivateChat() {
                         {allChatPairs.map(({chatId, p1, p2}) => {
                             const char1 = gameDetails.characters[p1.characterId];
                             const char2 = gameDetails.characters[p2.characterId];
+                            const unreadCount = unreadPrivateChats[chatId] || 0;
                             if (!char1 || !char2) return null;
                             return (
-                                <button key={chatId} onClick={() => handleSelectChat(chatId)} className={`w-full text-left p-2 rounded-md mb-1 ${selectedChat === chatId ? 'bg-red-800/80' : 'bg-zinc-800/80 hover:bg-zinc-700/80'}`}>
-                                    {char1.name} & {char2.name}
+                                <button key={chatId} onClick={() => handleSelectChat(chatId)} className={`relative w-full text-left p-2 rounded-md mb-1 flex justify-between items-center ${selectedChat === chatId ? 'bg-red-800/80' : 'bg-zinc-800/80 hover:bg-zinc-700/80'}`}>
+                                    <span>{char1.name} & {char2.name}</span>
+                                    {unreadCount > 0 && (
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
+                                            {unreadCount}
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })}
@@ -1778,10 +1770,19 @@ function PrivateChat() {
                     <h4 className="text-lg font-bold text-zinc-300 mb-2">Chat With:</h4>
                     {otherPlayers.map(player => {
                         const character = gameDetails.characters[player.characterId];
+                        const chatId = generateChatId(characterId, player.characterId);
+                        const unreadCount = unreadPrivateChats[chatId] || 0;
                         return (
-                            <button key={player.id} onClick={() => handleSelectChat(player.characterId)} className={`w-full text-left p-2 rounded-md mb-1 flex items-center gap-2 ${selectedChat === player.characterId ? 'bg-red-800/80' : 'bg-zinc-800/80 hover:bg-zinc-700/80'}`}>
-                                <img src={`https://images.weserv.nl/?url=${encodeURIComponent(character.idpic)}&w=32&h=32&fit=cover&a=top`} alt={character.name} className="w-8 h-8 rounded-full object-cover"/>
-                                <span>{character.name}</span>
+                            <button key={player.id} onClick={() => handleSelectChat(player.characterId)} className={`relative w-full text-left p-2 rounded-md mb-1 flex justify-between items-center ${selectedChat === player.characterId ? 'bg-red-800/80' : 'bg-zinc-800/80 hover:bg-zinc-700/80'}`}>
+                                <div className="flex items-center gap-2">
+                                    <img src={`https://images.weserv.nl/?url=${encodeURIComponent(character.idpic)}&w=32&h=32&fit=cover&a=top`} alt={character.name} className="w-8 h-8 rounded-full object-cover"/>
+                                    <span>{character.name}</span>
+                                </div>
+                                {unreadCount > 0 && (
+                                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">
+                                        {unreadCount}
+                                    </span>
+                                )}
                             </button>
                         );
                     })}
@@ -1927,24 +1928,28 @@ function ConfirmationModal({ message, onConfirm, onCancel }) {
 
 // Voting Screen for Players
 function VotingScreen() {
-    const { userId, gameId, showModalMessage } = useContext(AuthContext);
+    const { userId, gameId, showModalMessage, showConfirmation } = useContext(AuthContext);
     const { playersInGame, gameDetails } = useContext(GameContext);
-    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+    const appId = 'murder-mystery-game-app';
     const myPlayer = playersInGame.find(p => p.id === userId);
 
-    const handleVote = async (accusedId) => {
+    const handleVote = (accusedId) => {
         if (!myPlayer || myPlayer.votedFor) {
             showModalMessage("You have already voted.");
             return;
         }
-        try {
-            const playerDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/players/${userId}`);
-            await updateDoc(playerDocRef, { votedFor: accusedId });
-            showModalMessage("Your vote has been cast!");
-        } catch (e) {
-            console.error("Error casting vote:", e);
-            showModalMessage("Failed to cast your vote. Please try again.");
-        }
+
+        const accusedCharacter = gameDetails.characters[accusedId];
+        showConfirmation(`Are you sure you want to accuse ${accusedCharacter.name}? This cannot be undone.`, async () => {
+            try {
+                const playerDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/players/${userId}`);
+                await updateDoc(playerDocRef, { votedFor: accusedId });
+                showModalMessage("Your vote has been cast!");
+            } catch (e) {
+                console.error("Error casting vote:", e);
+                showModalMessage("Failed to cast your vote. Please try again.");
+            }
+        });
     };
 
     if (myPlayer?.votedFor) {
@@ -2038,7 +2043,7 @@ function RevealScreen({ handleFinishGame }) {
 function HostVotingDashboard() {
     const { gameId, showConfirmation } = useContext(AuthContext);
     const { playersInGame } = useContext(GameContext);
-    const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
+    const appId = 'murder-mystery-game-app';
 
     const allPlayersVoted = playersInGame.every(p => p.votedFor || p.characterId === 'host');
     
