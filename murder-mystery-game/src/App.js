@@ -87,29 +87,19 @@ function App() {
   }, [appId]);
 
   useEffect(() => {
-    const signIn = async () => {
-      if (!currentUser && isAuthReady) {
-        try {
-          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
-        } catch (error) {
-          console.error("Error signing in:", error);
-          try {
-            await signInAnonymously(auth);
-          } catch (anonError) {
-            console.error("Error signing in anonymously:", anonError);
-          }
-        }
+  const signIn = async () => {
+    if (!currentUser && isAuthReady) {
+      try {
+        await signInAnonymously(auth);
+      } catch (error) {
+        console.error("Error signing in anonymously:", error);
       }
-    };
-    if (isAuthReady) {
-      signIn();
     }
-  }, [isAuthReady, currentUser]);
-
+  };
+  if (isAuthReady) {
+    signIn();
+  }
+}, [isAuthReady, currentUser]);
   useEffect(() => {
     if (gameId && isAuthReady) {
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
