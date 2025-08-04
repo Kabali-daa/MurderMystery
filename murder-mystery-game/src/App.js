@@ -147,7 +147,7 @@ function App() {
     const soundManagerRef = useRef(null);
 
     // App ID from environment, with a fallback
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'murder-mystery-game-app';
+const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
 
     // --- Sound Manager Initialization ---
     useEffect(() => {
@@ -228,9 +228,9 @@ function App() {
                 setGameId('');
                 setCharacterId('');
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
+                   if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
+    await signInWithCustomToken(auth, window.__initial_auth_token);
+} else {
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
@@ -2292,3 +2292,4 @@ function AwardsScreen({ handleFinishGame }) {
 }
 
 export default App;
+
