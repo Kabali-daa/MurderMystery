@@ -272,6 +272,7 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
     );
 }
 
+
 const HostOverviewTab = ({ setActiveTab }) => {
     const { gameDetails, playersInGame, clueStates } = useContext(GameContext);
     const { recentActivity } = useContext(AuthContext);
@@ -298,7 +299,7 @@ const HostOverviewTab = ({ setActiveTab }) => {
                 <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg flex flex-col">
                     <h4 className="text-lg font-bold text-white mb-4">Quick Actions</h4>
                     <div className="space-y-3 flex-grow flex flex-col justify-center">
-                        <button onClick={() => setActiveTab('clues')} className="w-full flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"><PrivateIcon /> <span className="ml-2">Unlock Clue</span></button>
+                        <button onClick={() => setActiveTab('clues')} className="w-full flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"><CluesIcon /> <span className="ml-2">Unlock Clue</span></button>
                         <button onClick={() => setActiveTab('publicBoard')} className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 font-bold py-3 px-4 rounded-lg transition-colors"><PublicIcon /> <span className="ml-2">Announcement</span></button>
                         <button onClick={() => setActiveTab('players')} className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 font-bold py-3 px-4 rounded-lg transition-colors"><PlayersIcon /> <span className="ml-2">Assign Character</span></button>
                     </div>
@@ -391,13 +392,23 @@ const PlayerManagementTab = () => {
         }
     };
 
-    const handleKickPlayer = (playerId) => {
+       const handleKickPlayer = (playerId) => {
         showConfirmation(
             `Are you sure you want to kick this player? They will be removed from the game.`,
             async () => {
                 try {
+                    const batch = writeBatch(db);
+
+                    // Delete player from the game's player list
                     const playerDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/players/${playerId}`);
-                    await deleteDoc(playerDocRef);
+                    batch.delete(playerDocRef);
+
+                    // Reset the kicked player's user profile so they can join another game
+                    const userProfileRef = doc(db, `artifacts/${appId}/users/${playerId}/profile/data`);
+                    batch.update(userProfileRef, { gameId: null, characterId: null, isHost: false });
+                    
+                    await batch.commit();
+
                     addNotification("Player kicked successfully.");
                     setEditingPlayerId(null);
                 } catch (e) {
@@ -407,6 +418,7 @@ const PlayerManagementTab = () => {
             }
         );
     };
+
 
     return (
         <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg animate-fade-in">
