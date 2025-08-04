@@ -273,6 +273,7 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
 }
 
 
+
 const HostOverviewTab = ({ setActiveTab }) => {
     const { gameDetails, playersInGame, clueStates } = useContext(GameContext);
     const { recentActivity } = useContext(AuthContext);
@@ -392,7 +393,7 @@ const PlayerManagementTab = () => {
         }
     };
 
-       const handleKickPlayer = (playerId) => {
+             const handleKickPlayer = (playerId) => {
         showConfirmation(
             `Are you sure you want to kick this player? They will be removed from the game.`,
             async () => {
