@@ -132,9 +132,7 @@ function App() {
         if (userId && gameId && !isHost && isAuthReady) {
             const isPlayerInGame = playersInGame.some(p => p.id === userId);
             
-            // If gameDetails becomes null, it means the game ended.
-            // Or, if playersInGame is loaded and the player is not in it, they were kicked.
-            if (gameDetails === null || (playersInGame.length > 0 && !isPlayerInGame)) {
+            if ((gameDetails === null) || (playersInGame.length > 0 && !isPlayerInGame)) {
                 setGameId('');
                 setCharacterId('');
                 const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
@@ -153,7 +151,6 @@ function App() {
         if (!gameId || !userId || !gameDetails?.characters) return;
         const unsubscribers = [];
 
-        // Public messages
         const publicMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
         const qPublic = query(publicMessagesRef, where("timestamp", ">", new Date()));
         const unsubPublic = onSnapshot(qPublic, (snapshot) => {
@@ -166,7 +163,6 @@ function App() {
         });
         unsubscribers.push(unsubPublic);
 
-        // Private messages
         const generateChatId = (id1, id2) => [id1, id2].sort().join('_');
         const relevantChatIds = new Set();
 
@@ -226,6 +222,7 @@ function App() {
 
     // --- Core Game Actions ---
     const handleCreateGame = async (gameIdInput, sheetUrl) => {
+        // This function's logic remains the same
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
@@ -385,24 +382,22 @@ function App() {
                     });
 
                     // Delete subcollections
-                    const subcollections = ['messages', 'privateChats'];
-                    for (const sub of subcollections) {
-                        const subColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/${sub}`);
-                        const subColSnapshot = await getDocs(subColRef);
-                        for (const subDoc of subColSnapshot.docs) {
-                            if (sub === 'privateChats') {
-                                const messagesInPrivateChatRef = collection(subDoc.ref, 'messages');
-                                const messagesSnapshot = await getDocs(messagesInPrivateChatRef);
-                                messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
-                            }
-                            batch.delete(subDoc.ref);
-                        }
+                    const privateChatsColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats`);
+                    const privateChatsSnapshot = await getDocs(privateChatsColRef);
+                    for (const chatDoc of privateChatsSnapshot.docs) {
+                        const messagesInPrivateChatRef = collection(chatDoc.ref, 'messages');
+                        const messagesSnapshot = await getDocs(messagesInPrivateChatRef);
+                        messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
+                        batch.delete(chatDoc.ref);
                     }
+
+                    const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+                    const messagesSnapshot = await getDocs(messagesColRef);
+                    messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
                     
                     const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
                     batch.delete(gameDocRef);
 
-                    // Also update the host's profile
                     const hostProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
                     batch.update(hostProfileRef, { gameId: null, isHost: false, characterId: null });
 
@@ -410,7 +405,6 @@ function App() {
 
                     addNotification("The game has ended and the room has been deleted!");
 
-                    // Reset host's local state immediately
                     setGameId('');
                     setIsHost(false);
                     setCharacterId('');
