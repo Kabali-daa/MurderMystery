@@ -18,6 +18,8 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+
+
 // --- Context for Auth and Game State ---
 const AuthContext = createContext(null);
 const GameContext = createContext(null);
@@ -143,52 +145,11 @@ function App() {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedChat, setSelectedChat] = useState(null);
     const [recentActivity, setRecentActivity] = useState([]);
-    const [isMuted, setIsMuted] = useState(false);
-    const soundManagerRef = useRef(null);
 
     // App ID from environment, with a fallback
 const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
 
-    // --- Sound Manager Initialization ---
-    useEffect(() => {
-        if (window.Tone && !soundManagerRef.current) {
-            soundManagerRef.current = {
-                isReady: false,
-                messageSynth: new window.Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 } }).toDestination(),
-                clueSynth: new window.Tone.PluckSynth().toDestination(),
-                eventSynth: new window.Tone.MembraneSynth().toDestination(),
-                
-                async start() {
-                    if (!this.isReady) {
-                        await window.Tone.start();
-                        this.isReady = true;
-                        console.log("Audio context started!");
-                    }
-                },
-                
-                playMessageSound() { if (!isMuted && this.isReady) this.messageSynth.triggerAttackRelease('C5', '8n'); },
-                playClueSound() { if (!isMuted && this.isReady) this.clueSynth.triggerAttackRelease('G5', '8n', window.Tone.now() + 0.1); },
-                playVotingSound() { if (!isMuted && this.isReady) this.eventSynth.triggerAttackRelease('C3', '4n'); },
-                playRevealSound() { if (!isMuted && this.isReady) this.eventSynth.triggerAttackRelease('G2', '2n'); },
-            };
-        }
-    }, [isMuted]);
-
-    const initializeAudio = () => {
-        if (soundManagerRef.current && !soundManagerRef.current.isReady) {
-            soundManagerRef.current.start();
-        }
-    };
-
-    const playSound = (sound) => {
-        if (soundManagerRef.current && soundManagerRef.current.isReady) {
-            if (soundManagerRef.current[sound]) {
-                soundManagerRef.current[sound]();
-            }
-        }
-    };
-
-    // Function to add an activity to the recent activity log
+ // Function to add an activity to the recent activity log
     const addActivity = (activity) => {
         setRecentActivity(prev => [activity, ...prev].slice(0, 5));
     };
@@ -228,9 +189,9 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                 setGameId('');
                 setCharacterId('');
                 try {
-                   if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
-    await signInWithCustomToken(auth, window.__initial_auth_token);
-} else {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
                         await signInAnonymously(auth);
                     }
                 } catch (error) {
@@ -244,7 +205,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
     }, [appId]);
 
     // Effect for listening to game state changes once a gameId is set
-    const prevGamePhaseRef = useRef();
     useEffect(() => {
         if (gameId && isAuthReady) {
             const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
@@ -252,13 +212,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     
-                    // Sound triggers for phase changes
-                    if (prevGamePhaseRef.current && data.gamePhase !== prevGamePhaseRef.current) {
-                        if (data.gamePhase === 'voting') playSound('playVotingSound');
-                        if (data.gamePhase === 'reveal') playSound('playRevealSound');
-                    }
-                    prevGamePhaseRef.current = data.gamePhase;
-
                     setGameDetails({
                         characters: data.characters || {},
                         clues: data.clues || [],
@@ -298,15 +251,9 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                 if (myPlayerData.characterId !== characterId) {
                     setCharacterId(myPlayerData.characterId || '');
                 }
-            } else if (gameDetails) {
-                // If player is not in the game anymore, reset their state
-                if (gameId) {
-                    setGameId('');
-                    setCharacterId('');
-                    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-                    updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
-                }
-            }
+            } 
+            // FIX: Removed the aggressive "kick" logic that prevented rejoining.
+            // A player is now only removed from the game if the host explicitly kicks them.
         }
     }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
 
@@ -330,7 +277,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                     if (newMsgData.senderId !== userId) {
                         if (activeTab !== 'publicBoard') setUnreadPublicCount(prev => prev + 1);
                         addActivity({ type: 'public_message', sender: newMsgData.senderName, text: newMsgData.text, timestamp: new Date() });
-                        playSound('playMessageSound');
                     }
                 }
             });
@@ -378,7 +324,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                                 setUnreadPrivateChats(prev => ({ ...prev, [chatId]: (prev[chatId] || 0) + 1 }));
                             }
                             addActivity({ type: 'private_message', sender: 'Someone', receiver: 'Someone', text: newMsgData.text, timestamp: new Date() });
-                            playSound('playMessageSound');
                         }
                     }
                 });
@@ -421,7 +366,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
 
     // --- Core Game Actions ---
     const handleCreateGame = async (gameIdInput, sheetUrl) => {
-        initializeAudio();
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
@@ -531,7 +475,6 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
     };
 
     const handleJoinGame = async (inputGameId, playerName) => {
-        initializeAudio();
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
@@ -584,28 +527,51 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                     return;
                 }
                 try {
+                    const batch = writeBatch(db);
+                    
+                    // Get all players to update their profiles
                     const playersColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/players`);
                     const playersSnapshot = await getDocs(playersColRef);
-                    const batch = writeBatch(db);
-
+                    
                     playersSnapshot.forEach((playerDoc) => {
+                        // Update each player's profile to remove them from the game
+                        const userProfileRef = doc(db, `artifacts/${appId}/users/${playerDoc.id}/profile/data`);
+                        batch.update(userProfileRef, { gameId: null, isHost: false, characterId: null });
+                        
+                        // Delete the player document from the game's subcollection
                         batch.delete(playerDoc.ref);
                     });
 
-                    await batch.commit();
+                    // Delete all public messages
+                    const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+                    const messagesSnapshot = await getDocs(messagesColRef);
+                    messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
 
+                    // Delete all private chats (and their subcollections)
+                    const privateChatsColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats`);
+                    const privateChatsSnapshot = await getDocs(privateChatsColRef);
+                    for (const chatDoc of privateChatsSnapshot.docs) {
+                        const privateMessagesRef = collection(chatDoc.ref, 'messages');
+                        const privateMessagesSnap = await getDocs(privateMessagesRef);
+                        privateMessagesSnap.forEach(msgDoc => batch.delete(msgDoc.ref));
+                        batch.delete(chatDoc.ref);
+                    }
+
+                    // Finally, delete the main game document
                     const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
-                    await deleteDoc(gameDocRef);
+                    batch.delete(gameDocRef);
 
+                    // Commit all the batched writes
+                    await batch.commit();
 
                     showModalMessage("The game has ended and the room has been deleted!");
 
+                    // Reset host's local state
                     setGameId('');
                     setIsHost(false);
                     setCharacterId('');
                     const hostProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
                     await updateDoc(hostProfileRef, { gameId: null, isHost: false, characterId: null });
-
 
                 } catch (e) {
                     console.error("Error finishing game:", e);
@@ -649,7 +615,7 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
     }
 
     return (
-        <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat, appId, recentActivity, addActivity, isMuted, setIsMuted, playSound }}>
+        <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat, appId, recentActivity, addActivity }}>
             <GameContext.Provider value={{ gameDetails, clueStates, playersInGame }}>
                 <ScriptLoader />
                 <div className="min-h-screen bg-black font-sans text-slate-200">
@@ -698,11 +664,6 @@ function ScriptLoader() {
         fontLink.rel = "stylesheet";
         document.head.appendChild(fontLink);
 
-        const toneScript = document.createElement('script');
-        toneScript.src = "https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js";
-        toneScript.async = true;
-        document.body.appendChild(toneScript);
-
         const customStyles = document.createElement('style');
         customStyles.innerHTML = `
             @keyframes fade-in-out {
@@ -724,9 +685,6 @@ function ScriptLoader() {
         return () => {
             document.body.removeChild(papaScript);
             document.head.removeChild(fontLink);
-            if (document.body.contains(toneScript)) {
-                document.body.removeChild(toneScript);
-            }
             document.head.removeChild(customStyles);
         };
     }, []);
@@ -826,7 +784,7 @@ function LandingPage({ onCreateGame, onJoinGame }) {
 
 // NEW HOST DASHBOARD
 function HostDashboard({ handleResetGame, showConfirmation, setActiveTab, activeTab }) {
-    const { gameId, showModalMessage, appId, unreadPublicCount, unreadPrivateChats, setUnreadPublicCount, addNotification } = useContext(AuthContext);
+    const { gameId, unreadPublicCount, unreadPrivateChats, addNotification } = useContext(AuthContext);
     const { gameDetails, playersInGame } = useContext(GameContext);
 
     const currentRound = gameDetails?.currentRound || 1;
@@ -1249,7 +1207,7 @@ const ClueManagementTab = () => {
 
 // REVAMPED Player Dashboard
 function PlayerDashboard({ activeTab, setActiveTab }) {
-    const { userId, gameId, characterId, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats, appId, playSound } = useContext(AuthContext);
+    const { userId, gameId, characterId, setUnreadPublicCount, setUnreadPrivateChats, unreadPublicCount, unreadPrivateChats, appId, playSound, isMuted, setIsMuted } = useContext(AuthContext);
     const { clueStates, playersInGame, gameDetails } = useContext(GameContext);
     const [isDirectoryOpen, setIsDirectoryOpen] = useState(false);
     const [notes, setNotes] = useState('');
@@ -1345,7 +1303,7 @@ function PlayerDashboard({ activeTab, setActiveTab }) {
 
     const handleMarkCluesAsSeen = async () => {
         const newClueIds = globallyUnlockedClues.map(c => c.id).filter(id => !seenClues.includes(id));
-        if (newClueIds.length > 0) {
+        if (newCluesCount > 0) {
             const updatedSeenClues = [...seenClues, ...newClueIds];
             setSeenClues(updatedSeenClues);
             const playerDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/players/${userId}`);
@@ -1391,6 +1349,8 @@ function PlayerDashboard({ activeTab, setActiveTab }) {
                 newCluesCount={newCluesCount} 
                 characterName={myCharacter.name}
                 currentRound={currentRound}
+                isMuted={isMuted}
+                setIsMuted={setIsMuted}
             />
             <main className="flex-grow overflow-y-auto bg-neutral-900/30 rounded-b-xl">
                 {renderActiveTabContent()}
@@ -1400,7 +1360,7 @@ function PlayerDashboard({ activeTab, setActiveTab }) {
     );
 }
 
-const PlayerTopNav = ({ activeTab, setActiveTab, unreadPublic, unreadPrivate, newCluesCount, characterName, currentRound }) => {
+const PlayerTopNav = ({ activeTab, setActiveTab, unreadPublic, unreadPrivate, newCluesCount, characterName, currentRound, isMuted, setIsMuted }) => {
     const navItems = [
         { name: 'character', label: 'Character', icon: <CharactersIcon />, count: 0 },
         { name: 'clues', label: 'Clues', icon: <CluesIcon />, count: newCluesCount },
@@ -1413,7 +1373,10 @@ const PlayerTopNav = ({ activeTab, setActiveTab, unreadPublic, unreadPrivate, ne
         <header className="bg-neutral-900/80 backdrop-blur-lg border-b border-neutral-800 sticky top-0 z-20 p-2 rounded-t-xl">
             <div className="flex justify-between items-center mb-2 px-2">
                  <h1 className="text-xl font-bold text-white">{characterName}</h1>
-                 <div className="text-sm font-medium text-slate-400 bg-neutral-800 px-3 py-1 rounded-full">Round {currentRound}</div>
+                 <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-slate-400 bg-neutral-800 px-3 py-1 rounded-full">Round {currentRound}</div>
+                    <MuteButton isMuted={isMuted} setIsMuted={setIsMuted} />
+                 </div>
             </div>
             <nav className="flex justify-around items-center bg-neutral-800/50 p-1 rounded-lg">
                 {navItems.map(item => (
@@ -2292,4 +2255,3 @@ function AwardsScreen({ handleFinishGame }) {
 }
 
 export default App;
-
