@@ -200,7 +200,7 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
             </button>
         );
     };
-
+    
     const HostMobileNav = () => {
         const navItems = [
             { name: 'overview', label: 'Overview', icon: <OverviewIcon /> },
@@ -211,7 +211,7 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
         ];
 
         return (
-            <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/80 backdrop-blur-lg border-t border-neutral-800 flex justify-around p-1">
+            <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/80 backdrop-blur-lg border-t border-neutral-800 flex justify-around p-1 z-50">
                 {navItems.map(item => (
                      <button key={item.name} onClick={() => handleTabChange(item.name)} className={`flex flex-col items-center justify-center w-full h-full relative transition-colors py-2 rounded-lg group ${activeTab === item.name ? 'text-cyan-400' : 'text-slate-400 hover:bg-neutral-700/50 hover:text-slate-200'}`}>
                         {item.icon}
@@ -245,11 +245,11 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col w-full overflow-y-auto pb-16 sm:pb-0">
+            <main className="flex-1 flex flex-col w-full overflow-y-auto pb-20 sm:pb-0">
                 <div className="w-full max-w-7xl mx-auto p-4 sm:p-8">
                     <header className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 flex-shrink-0">
                         <div>
-                            <h3 className="text-3xl font-bold text-white">Game ID: <span className="text-cyan-400">{gameId}</span></h3>
+                            <h3 className="text-2xl sm:text-3xl font-bold text-white">Game ID: <span className="text-cyan-400">{gameId}</span></h3>
                             <p className="text-slate-400">{playersInGame.length} players connected • Round {currentRound} of 3</p>
                         </div>
                         <div className="flex space-x-2 sm:space-x-4 mt-4 sm:mt-0">
