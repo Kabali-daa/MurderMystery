@@ -189,8 +189,8 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
                 setGameId('');
                 setCharacterId('');
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+                    if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
+    await signInWithCustomToken(auth, window.__initial_auth_token);
                     } else {
                         await signInAnonymously(auth);
                     }
@@ -784,7 +784,7 @@ function LandingPage({ onCreateGame, onJoinGame }) {
 
 // NEW HOST DASHBOARD
 function HostDashboard({ handleResetGame, showConfirmation, setActiveTab, activeTab }) {
-    const { gameId, unreadPublicCount, unreadPrivateChats, addNotification } = useContext(AuthContext);
+    const { gameId, unreadPublicCount, unreadPrivateChats, addNotification, showModalMessage, setUnreadPublicCount, appId } = useContext(AuthContext);
     const { gameDetails, playersInGame } = useContext(GameContext);
 
     const currentRound = gameDetails?.currentRound || 1;
@@ -2255,3 +2255,4 @@ function AwardsScreen({ handleFinishGame }) {
 }
 
 export default App;
+
