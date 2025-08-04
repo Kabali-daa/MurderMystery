@@ -641,7 +641,6 @@ export function PlayerDashboard({ activeTab, setActiveTab }) {
         const newlyRevealedClueIds = [...currentUnlockedIds].filter(id => !prevUnlockedIds.has(id));
 
         if (newlyRevealedClueIds.length > 0) {
-            // Sound removed
             setHighlightedClues(current => {
                 const newSet = new Set(current);
                 newlyRevealedClueIds.forEach(id => newSet.add(id));
