@@ -374,13 +374,14 @@ function App() {
                     const playersColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/players`);
                     const playersSnapshot = await getDocs(playersColRef);
                     
+                    // Reset profile for each player and delete them from the game
                     playersSnapshot.forEach((playerDoc) => {
                         const userProfileRef = doc(db, `artifacts/${appId}/users/${playerDoc.id}/profile/data`);
                         batch.update(userProfileRef, { gameId: null, isHost: false, characterId: null });
                         batch.delete(playerDoc.ref);
                     });
 
-                    // Delete subcollections
+                    // Delete nested message subcollections within private chats
                     const privateChatsColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats`);
                     const privateChatsSnapshot = await getDocs(privateChatsColRef);
                     for (const chatDoc of privateChatsSnapshot.docs) {
@@ -390,13 +391,16 @@ function App() {
                         batch.delete(chatDoc.ref);
                     }
 
+                    // Delete public messages
                     const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
                     const messagesSnapshot = await getDocs(messagesColRef);
                     messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
                     
+                    // Delete the main game document
                     const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
                     batch.delete(gameDocRef);
 
+                    // Reset the host's profile
                     const hostProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
                     batch.update(hostProfileRef, { gameId: null, isHost: false, characterId: null });
 
@@ -404,6 +408,7 @@ function App() {
 
                     addNotification("The game has ended and the room has been deleted!");
 
+                    // Reset local state
                     setGameId('');
                     setIsHost(false);
                     setCharacterId('');
@@ -415,6 +420,7 @@ function App() {
             }
         );
     };
+
 
     // --- Render Logic ---
     const renderContent = () => {
@@ -470,3 +476,4 @@ function App() {
 }
 
 export default App;
+
