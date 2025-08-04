@@ -126,15 +126,23 @@ function App() {
         }
     }, [gameId, isAuthReady, appId]);
 
-    // Effect to handle player character assignment
+    // Effect to handle player character assignment and kicking
     useEffect(() => {
         if (userId && gameId && !isHost) {
             const myPlayerData = playersInGame.find(p => p.id === userId);
-            if (myPlayerData && myPlayerData.characterId !== characterId) {
-                setCharacterId(myPlayerData.characterId || '');
+            if (myPlayerData) {
+                if (myPlayerData.characterId !== characterId) {
+                    setCharacterId(myPlayerData.characterId || '');
+                }
+            } else if (gameDetails) {
+                // If player is not in the game's player list, reset their state
+                setGameId('');
+                setCharacterId('');
+                const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+                updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
             }
         }
-    }, [playersInGame, userId, gameId, isHost, characterId]);
+    }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
 
     // Effect for real-time message notifications
     useEffect(() => {
@@ -214,6 +222,7 @@ function App() {
 
     // --- Core Game Actions ---
     const handleCreateGame = async (gameIdInput, sheetUrl) => {
+        // This function's logic remains the same
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
@@ -321,6 +330,7 @@ function App() {
     };
 
     const handleJoinGame = async (inputGameId, playerName) => {
+        // This function's logic remains the same
         if (!userId || !inputGameId || !playerName.trim()) {
             showModalMessage("Please enter all required fields to join.");
             return;
@@ -377,7 +387,15 @@ function App() {
                     for (const sub of subcollections) {
                         const subColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/${sub}`);
                         const subColSnapshot = await getDocs(subColRef);
-                        subColSnapshot.forEach(doc => batch.delete(doc.ref));
+                        for (const subDoc of subColSnapshot.docs) {
+                            // If there are nested subcollections (like messages in privateChats)
+                            if (sub === 'privateChats') {
+                                const messagesInPrivateChatRef = collection(subDoc.ref, 'messages');
+                                const messagesSnapshot = await getDocs(messagesInPrivateChatRef);
+                                messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
+                            }
+                            batch.delete(subDoc.ref);
+                        }
                     }
                     
                     const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
@@ -385,11 +403,13 @@ function App() {
 
                     await batch.commit();
 
-                    showModalMessage("The game has ended and the room has been deleted!");
+                    addNotification("The game has ended and the room has been deleted!");
 
+                    // Reset host's local state immediately
                     setGameId('');
                     setIsHost(false);
                     setCharacterId('');
+
                 } catch (e) {
                     console.error("Error finishing game:", e);
                     showModalMessage("Failed to finish game. Please check console for details.");
@@ -436,9 +456,13 @@ function App() {
                 <ScriptLoader />
                 <div className="min-h-screen bg-black font-sans text-slate-200">
                     <NotificationContainer notifications={notifications} />
-                    <div className="min-h-screen w-full bg-black flex flex-col items-center justify-center p-2 sm:p-4">
-                        {renderContent()}
-                    </div>
+                    {isHost && gameId ? (
+                        renderContent()
+                    ) : (
+                        <div className="min-h-screen w-full bg-black flex flex-col items-center justify-center p-2 sm:p-4">
+                            {renderContent()}
+                        </div>
+                    )}
                     {showModal && <Modal message={modalContent} onClose={closeModal} />}
                     {confirmation.isOpen && <ConfirmationModal message={confirmation.message} onConfirm={confirmation.onConfirm} onCancel={closeConfirmation} />}
                 </div>
