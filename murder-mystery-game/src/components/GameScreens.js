@@ -3,7 +3,7 @@ import { db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, deleteDoc, addDoc, serverTimestamp, query, orderBy, where } from 'firebase/firestore';
 import { AuthContext, GameContext } from '../contexts';
 import { GameLogo } from './Common';
-import { OverviewIcon, PlayersIcon, CluesIcon, PublicIcon, PrivateIcon, NotesIcon, CharactersIcon } from './Icons';
+import { OverviewIcon, PlayersIcon, CluesIcon, PublicIcon, PrivateIcon, NotesIcon, CharactersIcon } from './icons';
 
 // Note: All major screen and dashboard components are in this file.
 // Smaller, more specific components are defined within the component that uses them.
@@ -252,9 +252,6 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
         </div>
     );
 }
-
-// ... more components would go here ...
-// For brevity, I'll add the rest of the components. You should copy all of them into this file.
 
 const HostOverviewTab = ({ setActiveTab }) => {
     const { gameDetails, playersInGame, clueStates } = useContext(GameContext);
