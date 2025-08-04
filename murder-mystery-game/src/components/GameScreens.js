@@ -5,9 +5,6 @@ import { AuthContext, GameContext } from '../contexts';
 import { GameLogo } from './Common';
 import { OverviewIcon, PlayersIcon, CluesIcon, PublicIcon, PrivateIcon, NotesIcon, CharactersIcon } from './icons';
 
-// Note: All major screen and dashboard components are in this file.
-// Smaller, more specific components are defined within the component that uses them.
-
 // --- Landing Page ---
 export function LandingPage({ onCreateGame, onJoinGame }) {
     const [gameIdInput, setGameIdInput] = useState('');
@@ -124,7 +121,6 @@ export function WaitingForAssignmentScreen() {
 }
 
 // --- Host Dashboard and its child components ---
-// (Many smaller components are defined here because they are only used by the HostDashboard)
 export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab, activeTab }) {
     const { gameId, showModalMessage, appId, unreadPublicCount, unreadPrivateChats, setUnreadPublicCount, addNotification } = useContext(AuthContext);
     const { gameDetails, playersInGame } = useContext(GameContext);
@@ -701,4 +697,866 @@ export function PlayerDashboard({ activeTab, setActiveTab }) {
     );
 }
 
-// ... and so on for all the other components.
+const MuteButton = ({ isMuted, setIsMuted }) => {
+    return (
+        <button onClick={() => setIsMuted(!isMuted)} className="p-2 rounded-full bg-neutral-700 hover:bg-neutral-600 text-white">
+            {isMuted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15v1a1 1 0 001 1h12a1 1 0 001-1v-1a1 1 0 00-.293-.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+            )}
+        </button>
+    );
+};
+
+const PlayerTopNav = ({ activeTab, setActiveTab, unreadPublic, unreadPrivate, newCluesCount, characterName, currentRound, isMuted, setIsMuted }) => {
+    const navItems = [
+        { name: 'character', label: 'Character', icon: <CharactersIcon />, count: 0 },
+        { name: 'clues', label: 'Clues', icon: <CluesIcon />, count: newCluesCount },
+        { name: 'publicBoard', label: 'Public', icon: <PublicIcon />, count: unreadPublic },
+        { name: 'privateChat', label: 'Private', icon: <PrivateIcon />, count: unreadPrivate },
+        { name: 'notes', label: 'Notes', icon: <NotesIcon />, count: 0 },
+    ];
+
+    return (
+        <header className="bg-neutral-900/80 backdrop-blur-lg border-b border-neutral-800 sticky top-0 z-20 p-2 rounded-t-xl">
+            <div className="flex justify-between items-center mb-2 px-2">
+                 <h1 className="text-xl font-bold text-white">{characterName}</h1>
+                 <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-slate-400 bg-neutral-800 px-3 py-1 rounded-full">Round {currentRound}</div>
+                    <MuteButton isMuted={isMuted} setIsMuted={setIsMuted} />
+                 </div>
+            </div>
+            <nav className="flex justify-around items-center bg-neutral-800/50 p-1 rounded-lg">
+                {navItems.map(item => (
+                    <button key={item.name} onClick={() => setActiveTab(item.name)} className={`flex flex-col items-center justify-center w-full h-full relative transition-colors py-2 rounded-lg group ${activeTab === item.name ? 'text-cyan-400' : 'text-slate-400 hover:bg-neutral-700/50 hover:text-slate-200'}`}>
+                        {item.count > 0 && (
+                            <span className="absolute top-1 right-1/2 translate-x-4 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white ring-2 ring-neutral-800">
+                                {item.count}
+                            </span>
+                        )}
+                        {item.icon}
+                        <span className="text-xs mt-1 font-semibold">{item.label}</span>
+                        <div className={`absolute bottom-0 h-0.5 bg-cyan-500 rounded-full transition-all duration-300 ${activeTab === item.name ? 'w-1/2' : 'w-0'} group-hover:w-1/4`}></div>
+                    </button>
+                ))}
+            </nav>
+        </header>
+    );
+};
+
+const PlayerCharacterTab = ({ myCharacter, victim, myCharacterSpecificClues, onOpenDirectory }) => {
+    const [isVictimDossierOpen, setIsVictimDossierOpen] = useState(false);
+    return (
+        <div className="p-4 sm:p-6 animate-fade-in">
+            <div className="flex flex-col sm:flex-row items-center mb-6">
+                {myCharacter.idpic && (
+                    <img 
+                        src={`https://images.weserv.nl/?url=${encodeURIComponent(myCharacter.idpic)}&w=128&h=128&fit=cover&a=top`} 
+                        alt={myCharacter.name} 
+                        className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover mr-0 sm:mr-6 mb-4 sm:mb-0 border-4 border-cyan-500/50 shadow-lg"
+                    />
+                )}
+                <div className="text-center sm:text-left">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-white">{myCharacter.name}</h2>
+                    <p className="text-lg text-cyan-300">Your Role: {myCharacter.role}</p>
+                </div>
+            </div>
+
+            <div className="bg-neutral-900/50 p-4 sm:p-6 rounded-lg mb-6 shadow-lg border border-neutral-800/80">
+                <h3 className="text-xl font-bold text-white mb-3">Your Character Dossier</h3>
+                
+                <div className="space-y-3 text-slate-300">
+                    <p><span className="font-bold text-slate-100">How to Act:</span> {myCharacter.howtoactyourpart || 'No specific instructions provided.'}</p>
+                    <p><span className="font-bold text-slate-100">Costume:</span> {myCharacter.suggestedCostume || 'Not specified'}</p>
+                    <p><span className="font-bold text-slate-100">Motive:</span> {myCharacter.motive}</p>
+                </div>
+
+                <div className="mt-4 p-4 bg-fuchsia-900/30 border border-fuchsia-500/30 rounded-lg">
+                    <h4 className="font-bold text-fuchsia-300">Secret Information (Do NOT Share)</h4>
+                    <p className="text-fuchsia-200 mt-1">{myCharacter.secretInfo}</p>
+                </div>
+
+                <div className="mt-4">
+                    <h4 className="text-lg font-bold text-white">Your Clues</h4>
+                    {myCharacterSpecificClues.length === 0 ? <p className="text-slate-400 italic text-sm mt-1">No specific clues assigned to your character.</p> : (
+                        <ul className="list-disc list-inside text-slate-300 mt-2 space-y-1">
+                            {myCharacterSpecificClues.map(clue => <li key={clue.id}><span className="font-semibold">{clue.description}:</span> {clue.content}</li>)}
+                        </ul>
+                    )}
+                </div>
+
+                {myCharacter.isKiller && (
+                    <div className="bg-rose-900/50 shadow-lg p-4 rounded-lg mt-6 text-center border border-rose-500/50">
+                        <p className="text-xl font-bold text-rose-300">YOU ARE THE KILLER!</p>
+                        <p className="text-rose-200 mt-2">Your secret is safe. Blend in, deceive, and avoid suspicion.</p>
+                    </div>
+                )}
+
+                <div className="bg-neutral-800/80 rounded-lg my-6 shadow-lg overflow-hidden border border-neutral-700">
+                    <button onClick={() => setIsVictimDossierOpen(!isVictimDossierOpen)} className="w-full p-4 text-left text-xl font-bold text-cyan-300 flex justify-between items-center hover:bg-neutral-700/50 transition-colors">
+                        <span>Victim Dossier</span>
+                        <span className={`transition-transform duration-300 ${isVictimDossierOpen ? 'rotate-180' : ''}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                        </span>
+                    </button>
+                    {isVictimDossierOpen && victim && (
+                        <div className="p-4 border-t border-neutral-700 animate-fade-in">
+                            <h4 className="text-lg font-bold text-slate-100 mb-2">The Victim: {victim.name}</h4>
+                            <p className="text-slate-300">{victim.secretInfo}</p>
+                        </div>
+                    )}
+                </div>
+
+                <button onClick={onOpenDirectory} className="w-full bg-gradient-to-r from-cyan-600 to-fuchsia-600 hover:from-cyan-700 hover:to-fuchsia-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                    View Cast of Characters
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const PlayerCluesTab = ({ globallyUnlockedClues, highlightedClues, onMarkSeen }) => {
+    const { gameDetails } = useContext(GameContext);
+    const characters = gameDetails?.characters || {};
+
+    const renderClueContent = (clue) => {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        let content = clue.content || '';
+        const urls = content.match(urlRegex);
+        const firstUrl = urls ? urls[0] : null;
+        const textContent = firstUrl ? content.replace(firstUrl, '').trim() : content;
+
+        let mediaElement = null;
+
+        if (firstUrl) {
+            const isImage = clue.type === 'image' || /\.(jpg|jpeg|png|gif|webp)$/i.test(firstUrl);
+            const isAudio = clue.type === 'audio' || /\.(mp3|wav|ogg)$/i.test(firstUrl);
+            const isVideo = clue.type === 'video' || /\.(mp4|webm)$/i.test(firstUrl);
+            
+            if (isImage) {
+                mediaElement = <img src={`https://images.weserv.nl/?url=${encodeURIComponent(firstUrl)}`} alt={clue.description} className="mt-2 rounded-md max-w-full h-auto" onError={(e) => { e.target.onerror = null; e.target.src = `https://placehold.co/300x200/171717/FFFFFF?text=Image+Error`; }} />;
+            } else if (isAudio) {
+                mediaElement = <audio controls src={firstUrl} className="mt-2 w-full"></audio>;
+            } else if (isVideo) {
+                mediaElement = <video controls src={firstUrl} className="mt-2 w-full"></video>;
+            } else {
+                mediaElement = <a href={firstUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline break-all">{firstUrl}</a>;
+            }
+        }
+        
+        return (
+            <div className="mt-2 pt-3 border-t border-neutral-700/50">
+                {textContent && <p className="text-slate-300 whitespace-pre-wrap">{textContent}</p>}
+                {mediaElement}
+            </div>
+        );
+    };
+
+    return (
+        <div className="p-4 sm:p-6 animate-fade-in">
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold text-white">Unlocked Evidence</h3>
+                <button onClick={onMarkSeen} className="bg-cyan-600/80 text-white px-3 py-1 rounded-md text-sm hover:bg-cyan-700">Mark All as Seen</button>
+            </div>
+            {globallyUnlockedClues.length === 0 ? <p className="text-slate-400">No clues unlocked yet. Wait for the host to reveal them!</p> : (
+                <ul className="space-y-4">
+                    {globallyUnlockedClues.map(clue => {
+                        const character = characters[clue.characterId];
+                        const isNew = highlightedClues.has(clue.id);
+                        return (
+                            <li key={clue.id} className={`bg-neutral-900/50 border border-neutral-800/80 p-4 rounded-lg shadow-lg relative overflow-hidden transition-all duration-500 ${isNew ? 'border-lime-400' : ''}`}>
+                                {isNew && <span className="absolute top-0 right-0 bg-lime-400 text-black text-xs font-bold px-2 py-1 rounded-bl-lg">NEW</span>}
+                                <p className="font-bold text-slate-100 text-lg mb-1">{clue.description} <span className="text-sm text-slate-400 font-normal">(Regarding: {character ? `${character.name}` : 'Unknown'})</span></p>
+                                <p className="text-sm text-slate-400 italic">Round {clue.round} | Type: {clue.type}</p>
+                                {renderClueContent(clue)}
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </div>
+    );
+};
+
+const PlayerNotesTab = ({ notes, setNotes }) => (
+    <div className="p-4 sm:p-6 h-full flex flex-col animate-fade-in">
+        <h3 className="text-2xl font-bold text-white mb-4">My Private Notes</h3>
+        <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Jot down your suspicions, theories, and important details here... Your notes are saved automatically."
+            className="w-full flex-grow p-4 bg-neutral-900/70 text-slate-200 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-cyan-500 border border-neutral-800/80 resize-none"
+        />
+    </div>
+);
+
+// Public Board
+function PublicBoard() {
+    const { userId, isHost, gameId, characterId, showConfirmation, showModalMessage, appId } = useContext(AuthContext);
+    const { playersInGame, gameDetails } = useContext(GameContext);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        if (gameId) {
+            const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+            const q = query(messagesColRef, orderBy('timestamp', 'asc'));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMessages(fetchedMessages);
+            });
+            return () => unsubscribe();
+        }
+    }, [gameId, appId]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!newMessage.trim()) return;
+
+        const myPlayer = playersInGame.find(p => p.id === userId);
+        const senderName = isHost ? 'The Host' : (myPlayer?.name || 'Unknown Player');
+
+        try {
+            const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+            await addDoc(messagesColRef, {
+                text: newMessage,
+                senderId: userId,
+                senderName: senderName,
+                characterId: characterId,
+                timestamp: serverTimestamp()
+            });
+            setNewMessage('');
+        } catch (error) {
+            console.error("Error sending message:", error);
+            showModalMessage("Failed to send message. Please try again.");
+        }
+    };
+
+    const handleDeleteMessage = (messageId) => {
+        showConfirmation("Are you sure you want to delete this message?", async () => {
+            try {
+                const messageDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/messages/${messageId}`);
+                await deleteDoc(messageDocRef);
+            } catch (error) {
+                console.error("Error deleting message:", error);
+                showModalMessage("Failed to delete message.");
+            }
+        });
+    };
+
+    return (
+        <div className={`p-4 flex flex-col animate-fade-in ${isHost ? 'h-full bg-neutral-900/50 border border-neutral-800/80 rounded-lg' : 'h-full'}`}>
+            <h3 className={`text-xl sm:text-2xl font-bold mb-4 text-center ${isHost ? 'text-white' : 'text-white'}`}>Public Message Board</h3>
+            <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+                {messages.map(msg => {
+                    const isMyMessage = msg.senderId === userId;
+                    let senderDisplayName;
+                    if (isHost) {
+                        senderDisplayName = msg.senderName;
+                    } else {
+                        senderDisplayName = isMyMessage ? (gameDetails.characters[characterId]?.name || 'You') : 'A Mysterious Figure';
+                    }
+
+                    return (
+                        <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] p-3 rounded-lg shadow-md ${isMyMessage ? 'bg-cyan-800/80' : 'bg-neutral-800'}`}>
+                                <div className="flex justify-between items-center gap-4">
+                                    <p className="font-bold text-cyan-300">{senderDisplayName}</p>
+                                    {isHost && (
+                                        <button onClick={() => handleDeleteMessage(msg.id)} className="text-xs text-slate-400 hover:text-rose-500">
+                                            &times;
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-slate-100 whitespace-pre-wrap mt-1">{msg.text}</p>
+                                <p className="text-xs text-neutral-500 text-right mt-1">
+                                    {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+                <div ref={messagesEndRef} />
+            </div>
+            <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Send a public message..."
+                    className="flex-grow p-3 bg-neutral-950/70 text-slate-100 rounded-lg shadow-inner placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 border border-neutral-700 transition"
+                />
+                <button type="submit" className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">
+                    Send
+                </button>
+            </form>
+        </div>
+    );
+}
+
+// Private Chat
+function PrivateChat() {
+    const { userId, isHost, gameId, characterId, showModalMessage, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat, appId } = useContext(AuthContext);
+    const { playersInGame, gameDetails } = useContext(GameContext);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef(null);
+    const [mobileView, setMobileView] = useState('list');
+
+    const generateChatId = (id1, id2) => [id1, id2].sort().join('_');
+
+    useEffect(() => {
+        if (selectedChat) {
+            const chatId = isHost ? selectedChat : generateChatId(characterId, selectedChat);
+            const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats/${chatId}/messages`);
+            const q = query(messagesColRef, orderBy('timestamp', 'asc'));
+            const unsubscribe = onSnapshot(q, (snapshot) => {
+                const fetchedMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setMessages(fetchedMessages);
+            });
+            return () => unsubscribe();
+        }
+    }, [selectedChat, gameId, appId, characterId, isHost]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !selectedChat) return;
+
+        const senderIdentifier = isHost ? userId : characterId;
+        const chatId = isHost ? selectedChat : generateChatId(characterId, selectedChat);
+        const messagesColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats/${chatId}/messages`);
+
+        try {
+            await addDoc(messagesColRef, {
+                text: newMessage,
+                senderId: senderIdentifier,
+                timestamp: serverTimestamp()
+            });
+            setNewMessage('');
+        } catch (error) {
+            console.error("Error sending private message:", error);
+            showModalMessage("Failed to send message.");
+        }
+    };
+
+    const handleSelectChat = (chatIdentifier) => {
+        const chatId = isHost ? chatIdentifier : generateChatId(characterId, chatIdentifier);
+
+        setSelectedChat(chatIdentifier);
+        setMobileView('chat');
+        setUnreadPrivateChats(prev => {
+            const newCounts = { ...prev };
+            if (newCounts[chatId] > 0) {
+                newCounts[chatId] = 0;
+            }
+            return newCounts;
+        });
+    };
+
+    const otherPlayers = playersInGame.filter(p => p.characterId && p.characterId !== characterId);
+
+    const allChatPairs = playersInGame.reduce((pairs, p1) => {
+        playersInGame.forEach(p2 => {
+            if (p1.characterId && p2.characterId && p1.characterId < p2.characterId) {
+                const chatId = generateChatId(p1.characterId, p2.characterId);
+                if (!pairs.some(p => p.chatId === chatId)) {
+                    pairs.push({ chatId, p1, p2 });
+                }
+            }
+        });
+        return pairs;
+    }, []);
+
+    if (isHost) {
+        return (
+            <div className="bg-neutral-900/50 border border-neutral-800/80 p-2 sm:p-4 rounded-lg shadow-lg flex flex-col h-full animate-fade-in">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 text-center">Private Conversations</h3>
+                <div className="flex flex-col md:flex-row gap-4 h-full overflow-hidden">
+                    <div className={`w-full md:w-1/3 border-neutral-800 pr-0 md:pr-4 overflow-y-auto ${mobileView === 'chat' && selectedChat ? 'hidden md:block' : 'block'}`}>
+                        <h4 className="text-lg font-bold text-slate-300 mb-2">Select a Conversation:</h4>
+                        {allChatPairs.map(({ chatId, p1, p2 }) => {
+                            const char1 = gameDetails.characters[p1.characterId];
+                            const char2 = gameDetails.characters[p2.characterId];
+                            const unreadCount = unreadPrivateChats[chatId] || 0;
+                            if (!char1 || !char2) return null;
+                            return (
+                                <button key={chatId} onClick={() => handleSelectChat(chatId)} className={`relative w-full text-left p-2 rounded-md mb-1 flex justify-between items-center ${selectedChat === chatId ? 'bg-cyan-800' : 'bg-neutral-800 hover:bg-neutral-700'}`}>
+                                    <span>{char1.name} & {char2.name}</span>
+                                    {unreadCount > 0 && <span className="flex h-2 w-2 rounded-full bg-rose-500"></span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className={`w-full md:w-2/3 flex flex-col ${mobileView === 'list' || !selectedChat ? 'hidden md:flex' : 'flex'}`}>
+                        {selectedChat ? (
+                            <>
+                                <button onClick={() => setMobileView('list')} className="md:hidden bg-neutral-700 text-white py-1 px-3 rounded-md mb-2 self-start">← Back</button>
+                                <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+                                    {messages.map(msg => {
+                                        const senderIsHost = msg.senderId === userId;
+                                        const sender = senderIsHost ? { name: "The Host", idpic: "https://placehold.co/40x40/d946ef/171717?text=H" } : gameDetails.characters[msg.senderId];
+                                        const senderName = sender?.name || 'Unknown';
+                                        return (
+                                            <div key={msg.id} className={`flex items-start gap-3`}>
+                                                {sender?.idpic && <img src={senderIsHost ? sender.idpic : `https://images.weserv.nl/?url=${encodeURIComponent(sender.idpic)}&w=40&h=40&fit=cover&a=top`} alt={senderName} className="w-10 h-10 rounded-full object-cover border-2 border-neutral-600"/>}
+                                                <div className={`flex-1 p-3 rounded-lg ${senderIsHost ? 'bg-fuchsia-900/50' : 'bg-neutral-700'}`}>
+                                                    <p className={`font-bold ${senderIsHost ? 'text-fuchsia-400' : 'text-cyan-400'}`}>{senderName}</p>
+                                                    <p className="text-slate-100 whitespace-pre-wrap mt-1">{msg.text}</p>
+                                                    <p className="text-xs text-neutral-500 text-right mt-1">{msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                                <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+                                    <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Send a message as Host..." className="flex-grow p-3 bg-neutral-800/80 text-slate-100 rounded-lg shadow-inner placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 border border-neutral-700 transition" />
+                                    <button type="submit" className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">Send</button>
+                                </form>
+                            </>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-neutral-500">Select a conversation to view messages.</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+
+    return (
+        <div className="p-4 flex flex-col h-full animate-fade-in">
+            <h3 className="text-2xl font-bold text-white mb-4 text-center">Private Chat</h3>
+            <div className="flex flex-col h-full overflow-hidden">
+                {(!selectedChat || mobileView === 'list') ? (
+                    <div className="overflow-y-auto">
+                        <h4 className="text-lg font-bold text-slate-300 mb-2">Chat With:</h4>
+                        {otherPlayers.map(player => {
+                            const character = gameDetails.characters[player.characterId];
+                            const chatId = generateChatId(characterId, player.characterId);
+                            const unreadCount = unreadPrivateChats[chatId] || 0;
+                            return (
+                                <button key={player.id} onClick={() => handleSelectChat(player.characterId)} className={`relative w-full text-left p-2 rounded-md mb-1 flex justify-between items-center bg-neutral-900 border border-neutral-800 hover:bg-neutral-800`}>
+                                    <div className="flex items-center gap-3">
+                                        <img src={`https://images.weserv.nl/?url=${encodeURIComponent(character.idpic)}&w=40&h=40&fit=cover&a=top`} alt={character.name} className="w-10 h-10 rounded-full object-cover"/>
+                                        <span className="font-semibold">{character.name}</span>
+                                    </div>
+                                    {unreadCount > 0 && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white">{unreadCount}</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="flex flex-col h-full">
+                        <div className="flex items-center mb-2">
+                            <button onClick={() => setSelectedChat(null)} className="bg-neutral-700 text-white p-2 rounded-md mr-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <h4 className="text-lg font-bold text-slate-100">Chat with {gameDetails.characters[selectedChat]?.name}</h4>
+                        </div>
+                        <div className="flex-grow overflow-y-auto pr-2 space-y-4 p-2 bg-black/30 rounded-lg">
+                            {messages.map(msg => {
+                                const isMyMessage = msg.senderId === characterId;
+                                const senderIsHost = msg.senderId === gameDetails.hostId;
+                                return (
+                                    <div key={msg.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                                        <div className={`max-w-[80%] p-3 rounded-lg shadow-md ${isMyMessage ? 'bg-cyan-800/80' : senderIsHost ? 'bg-fuchsia-900/50' : 'bg-neutral-800'}`}>
+                                            {senderIsHost && <p className="font-bold text-fuchsia-400">The Host</p>}
+                                            <p className="text-slate-100 whitespace-pre-wrap">{msg.text}</p>
+                                            <p className="text-xs text-neutral-500 text-right mt-1">{msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div ref={messagesEndRef} />
+                        </div>
+                        <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
+                            <input
+                                type="text"
+                                value={newMessage}
+                                onChange={(e) => setNewMessage(e.target.value)}
+                                placeholder={`Message ${gameDetails.characters[selectedChat]?.name}...`}
+                                className="flex-grow p-3 bg-neutral-950/70 text-slate-100 rounded-lg shadow-inner placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 border border-neutral-700 transition"
+                            />
+                            <button type="submit" className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg shadow-lg hover:bg-cyan-700 transition">Send</button>
+                        </form>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function CharacterDirectoryModal({ characters, players, onClose }) {
+    const assignedCharacterIds = players.map(p => p.characterId).filter(Boolean);
+    const characterList = Object.values(characters).filter(c => c.id !== 'rajinikanth' && assignedCharacterIds.includes(c.id));
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-neutral-900 p-6 rounded-lg shadow-xl max-w-4xl w-full border border-neutral-800 relative">
+                <button onClick={onClose} className="absolute top-3 right-3 text-slate-400 hover:text-white text-3xl leading-none" aria-label="Close">&times;</button>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-white mb-6 text-center">Cast of Characters</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 max-h-[70vh] overflow-y-auto p-2">
+                    {characterList.map(char => {
+                        const player = players.find(p => p.characterId === char.id);
+                        return (
+                            <div key={char.id} className="bg-neutral-800/80 p-4 rounded-lg text-center">
+                                <img src={`https://images.weserv.nl/?url=${encodeURIComponent(char.idpic)}&w=128&h=128&fit=cover&a=top`} alt={char.name} className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-neutral-700"/>
+                                <h4 className="text-xl font-bold text-slate-100">{char.name}</h4>
+                                <p className="text-sm text-cyan-300">{char.role}</p>
+                                <p className="text-sm text-neutral-500 mt-2">Played by: {player?.name || 'Unassigned'}</p>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function VotingScreen() {
+    const { userId, gameId, showModalMessage, showConfirmation, appId, addNotification } = useContext(AuthContext);
+    const { playersInGame, gameDetails } = useContext(GameContext);
+    const myPlayer = playersInGame.find(p => p.id === userId);
+
+    const handleVote = (accusedId) => {
+        if (!myPlayer || myPlayer.votedFor) {
+            showModalMessage("You have already voted.");
+            return;
+        }
+        const accusedCharacter = gameDetails.characters[accusedId];
+        showConfirmation(`Are you sure you want to accuse ${accusedCharacter.name}? This cannot be undone.`, async () => {
+            try {
+                const playerDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}/players/${userId}`);
+                await updateDoc(playerDocRef, { votedFor: accusedId });
+                addNotification("Your vote has been cast!");
+            } catch (e) {
+                console.error("Error casting vote:", e);
+                showModalMessage("Failed to cast your vote. Please try again.");
+            }
+        });
+    };
+
+    if (myPlayer?.votedFor) {
+        return (
+            <div className="w-full max-w-2xl mx-auto bg-neutral-900/50 backdrop-blur-md p-8 rounded-xl shadow-lg text-center border border-neutral-800/50">
+                <h2 className="text-3xl font-bold text-emerald-400 mb-4">Vote Cast!</h2>
+                <p className="text-slate-300">You have accused <span className="font-bold">{gameDetails.characters[myPlayer.votedFor]?.name}</span>.</p>
+                <p className="text-slate-400 mt-4">Waiting for the host to reveal the killer...</p>
+                   <div className="mt-6"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto"></div></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full max-w-5xl mx-auto bg-neutral-900/50 backdrop-blur-md p-8 rounded-xl shadow-lg border border-neutral-800/50">
+            <div className="flex justify-center mb-6"><GameLogo /></div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-center text-white mb-6">Who is the Killer?</h2>
+            <p className="text-center text-slate-300 mb-8">The investigation is over. It's time to make your final accusation.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {playersInGame.filter(p => p.characterId && p.characterId !== 'rajinikanth').map(player => {
+                    const character = gameDetails.characters[player.characterId];
+                    if (!character) return null;
+                    return (
+                        <div key={player.id} onClick={() => handleVote(player.characterId)} className="bg-neutral-900/80 p-4 rounded-lg shadow-lg text-center cursor-pointer border-2 border-transparent hover:border-cyan-500 hover:scale-105 transition-all duration-200 group">
+                            <img src={`https://images.weserv.nl/?url=${encodeURIComponent(character.idpic)}&w=128&h=128&fit=cover&a=top`} alt={character.name} className="w-32 h-32 rounded-full object-cover mx-auto mb-4 border-4 border-neutral-700 group-hover:border-cyan-500 transition-colors"/>
+                            <h3 className="text-xl font-bold text-slate-100">{character.name}</h3>
+                            <p className="text-sm text-cyan-300">{character.role}</p>
+                            <p className="text-sm text-neutral-500 mt-2">Played by: {player.name}</p>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+export function RevealScreen() {
+    const { isHost, gameId, appId } = useContext(AuthContext);
+    const { playersInGame, gameDetails } = useContext(GameContext);
+    const characters = gameDetails?.characters || {};
+    const killer = Object.values(characters).find(c => c.isKiller);
+    const killerPlayer = killer ? playersInGame.find(p => p.characterId === killer.id) : null;
+
+    const voteCounts = playersInGame.reduce((acc, player) => {
+        if (player.votedFor) {
+            acc[player.votedFor] = (acc[player.votedFor] || 0) + 1;
+        }
+        return acc;
+    }, {});
+    const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+    const totalVotes = sortedVotes.reduce((sum, [, count]) => sum + count, 0);
+
+    const handleSeeAwards = async () => {
+        if (!gameId) return;
+        try {
+            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
+            await updateDoc(gameDocRef, { gamePhase: 'awards' });
+        } catch (e) { console.error("Error proceeding to awards:", e); }
+    };
+
+    return (
+       <div className="w-full max-w-2xl mx-auto bg-neutral-900/50 backdrop-blur-md p-8 rounded-xl shadow-lg text-center border border-neutral-800/50">
+           <div className="flex justify-center mb-6"><GameLogo /></div>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-center text-white mb-6">The Verdict</h2>
+            <div className="mb-8 bg-black/50 p-4 rounded-lg">
+                <h3 className="text-2xl font-bold text-white mb-4">Final Votes:</h3>
+                <ul className="space-y-3">
+                    {sortedVotes.map(([charId, count]) => {
+                        const character = characters[charId];
+                        const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+                        return (
+                            <li key={charId} className="text-lg text-slate-300">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span>{character ? `${character.name}` : 'Unknown'}</span>
+                                    <span className="font-bold text-white">{count} vote(s)</span>
+                                </div>
+                                <div className="w-full bg-neutral-700 rounded-full h-2.5">
+                                    <div className="bg-gradient-to-r from-cyan-500 to-fuchsia-500 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
+                                </div>
+                            </li>
+                        );
+                    })}
+                     {sortedVotes.length === 0 && <p className="text-slate-400">No votes were cast.</p>}
+                </ul>
+            </div>
+            {killer && (
+                <div className="border-t-2 border-neutral-800/50 pt-6">
+                    <h3 className="text-2xl font-bold text-slate-100 mb-4">The Killer was...</h3>
+                    <img src={`https://images.weserv.nl/?url=${encodeURIComponent(killer.idpic)}&w=160&h=160&fit=cover&a=top`} alt={killer.name} className="w-40 h-40 rounded-full object-cover mx-auto mb-4 border-4 border-rose-500 shadow-lg"/>
+                    <p className="text-3xl sm:text-4xl font-bold text-rose-400">{killer.name}!</p>
+                    {killerPlayer && <p className="text-xl text-slate-300">(Played by {killerPlayer.name})</p>}
+                    <p className="text-lg text-slate-300 mt-2">{killer.role}</p>
+                    <p className="text-xl text-slate-300 mt-4">Motive:</p>
+                    <p className="text-slate-400 italic mt-2">{killer.motive}</p>
+                </div>
+            )}
+            {isHost && <button onClick={handleSeeAwards} className="mt-8 w-full bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">Continue to Awards</button>}
+        </div>
+    );
+}
+
+export function HostVotingDashboard() {
+    const { gameId, showConfirmation, appId, addNotification } = useContext(AuthContext);
+    const { playersInGame } = useContext(GameContext);
+    
+    const votingPlayers = playersInGame.filter(p => p.characterId && p.characterId !== 'host');
+    const votedCount = votingPlayers.filter(p => p.votedFor).length;
+    const totalVoters = votingPlayers.length;
+    const allPlayersVoted = votedCount === totalVoters;
+    const progress = totalVoters > 0 ? (votedCount / totalVoters) * 100 : 0;
+
+    const handleRevealKiller = async () => {
+        if (!gameId) return;
+        showConfirmation("Are you sure you want to reveal the killer? This cannot be undone.", async () => {
+            try {
+                const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
+                await updateDoc(gameDocRef, { gamePhase: 'reveal' });
+                addNotification("The killer has been revealed!");
+            } catch (e) { console.error("Error revealing killer:", e); }
+        });
+    };
+
+    return (
+        <div className="w-full max-w-4xl mx-auto bg-neutral-900/50 backdrop-blur-md p-8 rounded-xl shadow-lg border border-neutral-800/50">
+            <h2 className="text-3xl font-bold text-white mb-4 text-center">Live Voting Tally</h2>
+            <p className="text-slate-400 text-center mb-6">Monitor players as they cast their final votes.</p>
+
+            <div className="mb-6">
+                <div className="flex justify-between mb-1">
+                    <span className="text-base font-medium text-slate-300">Voting Progress</span>
+                    <span className="text-sm font-medium text-slate-300">{votedCount} / {totalVoters}</span>
+                </div>
+                <div className="w-full bg-neutral-700 rounded-full h-4">
+                    <div className="bg-emerald-600 h-4 rounded-full transition-all duration-500" style={{width: `${progress}%`}}></div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                {votingPlayers.map(player => (
+                    <div key={player.id} className="flex justify-between items-center bg-neutral-800/80 p-3 rounded-lg">
+                        <span className="text-slate-100">{player.name}</span>
+                        {player.votedFor ? 
+                            <span className="text-emerald-400 font-bold flex items-center gap-1">Voted</span> : 
+                            <span className="text-amber-400 animate-pulse flex items-center gap-1">Waiting...</span>
+                        }
+                    </div>
+                ))}
+            </div>
+            <button onClick={handleRevealKiller} disabled={!allPlayersVoted} className="w-full bg-gradient-to-r from-cyan-600 to-fuchsia-600 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                {allPlayersVoted ? 'Reveal The Killer' : 'Waiting for all votes...'}
+            </button>
+        </div>
+    );
+}
+
+export function AwardsScreen({ handleFinishGame }) {
+    const { isHost, gameId, appId } = useContext(AuthContext);
+    const { playersInGame, gameDetails } = useContext(GameContext);
+    const [awards, setAwards] = useState(null);
+
+    useEffect(() => {
+        const calculateAwards = async () => {
+            if (gameDetails && playersInGame.length > 0) {
+                const characters = gameDetails.characters || {};
+                const killer = Object.values(characters).find(c => c.isKiller);
+                if (!killer) return;
+
+                const voteCounts = playersInGame.reduce((acc, player) => {
+                    if (player.votedFor) {
+                        acc[player.votedFor] = (acc[player.votedFor] || 0) + 1;
+                    }
+                    return acc;
+                }, {});
+
+                const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+                const mostVoted = sortedVotes.length > 0 ? sortedVotes[0] : null;
+                const mostVotedCharacterId = mostVoted ? mostVoted[0] : null;
+
+                const killerWon = mostVotedCharacterId !== killer.id;
+                
+                const masterSleuths = playersInGame.filter(p => p.votedFor === killer.id);
+                
+                let scapegoat = null;
+                if (mostVoted && mostVotedCharacterId !== killer.id) {
+                    const scapegoatPlayer = playersInGame.find(p => p.characterId === mostVotedCharacterId);
+                    if (scapegoatPlayer) {
+                        scapegoat = {
+                            name: scapegoatPlayer.name,
+                            characterName: characters[scapegoatPlayer.characterId]?.name
+                        };
+                    }
+                }
+                
+                let masterOfDeception = null;
+                if(killerWon) {
+                    const killerPlayer = playersInGame.find(p => p.characterId === killer.id);
+                    if(killerPlayer) masterOfDeception = killerPlayer;
+                }
+
+                // Chatterbox Calculation
+                const messageCounts = {};
+                playersInGame.forEach(p => { messageCounts[p.id] = 0; });
+
+                const publicMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/messages`);
+                const publicMessagesSnap = await getDocs(publicMessagesRef);
+                publicMessagesSnap.forEach(doc => {
+                    const msg = doc.data();
+                    if(messageCounts[msg.senderId] !== undefined) {
+                        messageCounts[msg.senderId]++;
+                    }
+                });
+
+                const chatPairs = playersInGame.reduce((pairs, p1) => {
+                    playersInGame.forEach(p2 => {
+                        if (p1.characterId && p2.characterId && p1.id < p2.id) {
+                            pairs.push([p1.characterId, p2.characterId].sort().join('_'));
+                        }
+                    });
+                    return [...new Set(pairs)];
+                }, []);
+
+                for (const chatId of chatPairs) {
+                    const privateMessagesRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/privateChats/${chatId}/messages`);
+                    const privateMessagesSnap = await getDocs(privateMessagesRef);
+                    privateMessagesSnap.forEach(doc => {
+                        const msg = doc.data();
+                        const player = playersInGame.find(p => p.characterId === msg.senderId);
+                        if (player && messageCounts[player.id] !== undefined) {
+                            messageCounts[player.id]++;
+                        }
+                    });
+                }
+                
+                let chatterbox = null;
+                let maxMessages = -1;
+                for(const playerId in messageCounts) {
+                    if(messageCounts[playerId] > maxMessages) {
+                        maxMessages = messageCounts[playerId];
+                        chatterbox = playersInGame.find(p => p.id === playerId);
+                    }
+                }
+
+                setAwards({
+                    winningTeam: killerWon ? "The Killer" : "The Innocents",
+                    masterSleuths,
+                    mostSuspicious: scapegoat,
+                    masterOfDeception,
+                    chatterbox,
+                });
+            }
+        };
+
+        calculateAwards();
+    }, [gameDetails, playersInGame, gameId, appId]);
+
+    if (!awards) {
+        return <div className="text-center p-8">Calculating awards...</div>;
+    }
+
+    return (
+        <div className="w-full max-w-3xl mx-auto bg-neutral-900/50 backdrop-blur-md p-8 rounded-xl shadow-lg text-center border border-neutral-800/50">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-center text-white mb-2">Awards Ceremony</h2>
+            <p className="text-amber-300 text-xl mb-8">{awards.winningTeam === 'The Killer' ? 'Deception was victorious!' : 'Justice has prevailed!'}</p>
+
+            <div className="space-y-6">
+                <div className="bg-neutral-900/50 p-6 rounded-lg border border-neutral-800">
+                    <h3 className="text-2xl font-bold text-amber-400 mb-3">🏆 Winning Team 🏆</h3>
+                    <p className="text-3xl font-bold">{awards.winningTeam}</p>
+                </div>
+
+                {awards.masterOfDeception && (
+                     <div className="bg-neutral-900/50 p-6 rounded-lg border border-neutral-800">
+                        <h3 className="text-2xl font-bold text-fuchsia-400 mb-3">😈 Master of Deception 😈</h3>
+                        <p className="text-lg">The killer, <span className="font-bold">{gameDetails.characters[awards.masterOfDeception.characterId]?.name}</span> (played by <span className="font-bold">{awards.masterOfDeception.name}</span>), successfully evaded capture!</p>
+                    </div>
+                )}
+
+                <div className="bg-neutral-900/50 p-6 rounded-lg border border-neutral-800">
+                    <h3 className="text-2xl font-bold text-cyan-400 mb-3">🕵️‍♂️ Master Sleuths 🕵️‍♀️</h3>
+                    {awards.masterSleuths.length > 0 ? (
+                        <ul className="space-y-1">
+                            {awards.masterSleuths.map(player => {
+                                const character = gameDetails.characters[player.characterId];
+                                return <li key={player.id} className="text-lg"><span className="font-bold">{player.name}</span> as {character?.name}</li>
+                            })}
+                        </ul>
+                    ) : (
+                        <p className="text-slate-400">The killer outsmarted everyone...</p>
+                    )}
+                </div>
+
+                {awards.mostSuspicious && (
+                    <div className="bg-neutral-900/50 p-6 rounded-lg border border-neutral-800">
+                        <h3 className="text-2xl font-bold text-rose-400 mb-3">🎭 The Scapegoat 🎭</h3>
+                        <p className="text-lg">The innocents wrongly accused <span className="font-bold">{awards.mostSuspicious.characterName}</span>, played by {awards.mostSuspicious.name}.</p>
+                    </div>
+                )}
+
+                {awards.chatterbox && (
+                     <div className="bg-neutral-900/50 p-6 rounded-lg border border-neutral-800">
+                        <h3 className="text-2xl font-bold text-lime-400 mb-3">💬 Chatterbox 💬</h3>
+                        <p className="text-lg"><span className="font-bold">{awards.chatterbox.name}</span> ({gameDetails.characters[awards.chatterbox.characterId]?.name}) couldn't stop talking!</p>
+                    </div>
+                )}
+            </div>
+
+            {isHost && <button onClick={handleFinishGame} className="mt-8 w-full bg-gradient-to-r from-neutral-700 to-neutral-800 hover:from-neutral-800 hover:to-neutral-900 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">Finish Game & Delete Room</button>}
+        </div>
+    );
+}
+
