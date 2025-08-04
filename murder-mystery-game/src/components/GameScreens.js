@@ -201,10 +201,31 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
         );
     };
 
+    const HostMobileNav = () => {
+        const navItems = [
+            { name: 'overview', label: 'Overview', icon: <OverviewIcon /> },
+            { name: 'players', label: 'Players', icon: <PlayersIcon /> },
+            { name: 'clues', label: 'Clues', icon: <CluesIcon /> },
+            { name: 'publicBoard', label: 'Public', icon: <PublicIcon /> },
+            { name: 'privateChats', label: 'Private', icon: <PrivateIcon /> },
+        ];
+
+        return (
+            <nav className="sm:hidden fixed bottom-0 left-0 right-0 bg-neutral-900/80 backdrop-blur-lg border-t border-neutral-800 flex justify-around p-1">
+                {navItems.map(item => (
+                     <button key={item.name} onClick={() => handleTabChange(item.name)} className={`flex flex-col items-center justify-center w-full h-full relative transition-colors py-2 rounded-lg group ${activeTab === item.name ? 'text-cyan-400' : 'text-slate-400 hover:bg-neutral-700/50 hover:text-slate-200'}`}>
+                        {item.icon}
+                        <span className="text-xs mt-1 font-semibold">{item.label}</span>
+                     </button>
+                ))}
+            </nav>
+        );
+    };
+
     return (
-        <div className="flex h-screen bg-black text-slate-300">
-            {/* Sidebar */}
-            <aside className="w-64 bg-neutral-950/70 p-5 flex-col hidden sm:flex border-r border-neutral-800">
+        <div className="flex h-screen w-full bg-black text-slate-300">
+            {/* Sidebar for Desktop */}
+            <aside className="w-64 bg-neutral-950/70 p-5 flex-col hidden sm:flex border-r border-neutral-800 flex-shrink-0">
                 <div className="flex items-center gap-3 mb-10">
                     <GameLogo className="w-32" />
                 </div>
@@ -224,27 +245,29 @@ export function HostDashboard({ handleResetGame, showConfirmation, setActiveTab,
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 flex flex-col p-4 sm:p-8 overflow-y-auto">
-                <header className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 flex-shrink-0">
-                    <div>
-                        <h3 className="text-3xl font-bold text-white">Game ID: <span className="text-cyan-400">{gameId}</span></h3>
-                        <p className="text-slate-400">{playersInGame.length} players connected • Round {currentRound} of 3</p>
-                    </div>
-                    <div className="flex space-x-2 sm:space-x-4 mt-4 sm:mt-0">
-                        {currentRound < 3 ? (
-                            <button onClick={handleAdvanceRound} className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow-md">Advance Round</button>
-                        ) : (
-                            <button onClick={handleStartVoting} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors shadow-md">Begin Voting</button>
-                        )}
-                        <button onClick={handleResetGame} className="bg-rose-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-700 transition-colors shadow-md">End Game</button>
-                    </div>
-                </header>
+            <main className="flex-1 flex flex-col w-full overflow-y-auto pb-16 sm:pb-0">
+                <div className="w-full max-w-7xl mx-auto p-4 sm:p-8">
+                    <header className="flex flex-col sm:flex-row justify-between sm:items-center mb-8 flex-shrink-0">
+                        <div>
+                            <h3 className="text-3xl font-bold text-white">Game ID: <span className="text-cyan-400">{gameId}</span></h3>
+                            <p className="text-slate-400">{playersInGame.length} players connected • Round {currentRound} of 3</p>
+                        </div>
+                        <div className="flex space-x-2 sm:space-x-4 mt-4 sm:mt-0">
+                            {currentRound < 3 ? (
+                                <button onClick={handleAdvanceRound} className="bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-700 transition-colors shadow-md">Advance Round</button>
+                            ) : (
+                                <button onClick={handleStartVoting} className="bg-emerald-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-emerald-700 transition-colors shadow-md">Begin Voting</button>
+                            )}
+                            <button onClick={handleResetGame} className="bg-rose-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-rose-700 transition-colors shadow-md">End Game</button>
+                        </div>
+                    </header>
 
-                <div className="w-full flex-grow h-full">
-                    {tabs[activeTab]}
+                    <div className="w-full flex-grow h-full">
+                        {tabs[activeTab]}
+                    </div>
                 </div>
-
             </main>
+            <HostMobileNav />
         </div>
     );
 }
@@ -263,27 +286,27 @@ const HostOverviewTab = ({ setActiveTab }) => {
         <div className="animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {/* Stats Card */}
-                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg">
+                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg flex flex-col">
                     <h4 className="text-lg font-bold text-white mb-4">Game Statistics</h4>
-                    <div className="space-y-3">
+                    <div className="space-y-3 flex-grow">
                         <p className="flex justify-between"><span>Active Players</span> <span className="font-bold text-cyan-400">{playersInGame.length}</span></p>
                         <p className="flex justify-between"><span>Characters Assigned</span> <span className="font-bold text-cyan-400">{assignedCharactersCount} / {Object.keys(characters).length -1}</span></p>
                         <p className="flex justify-between"><span>Clues Unlocked</span> <span className="font-bold text-cyan-400">{unlockedCluesCount} / {allClues.length}</span></p>
                     </div>
                 </div>
                 {/* Quick Actions Card */}
-                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg">
+                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg flex flex-col">
                     <h4 className="text-lg font-bold text-white mb-4">Quick Actions</h4>
-                    <div className="space-y-3">
+                    <div className="space-y-3 flex-grow flex flex-col justify-center">
                         <button onClick={() => setActiveTab('clues')} className="w-full flex items-center justify-center bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"><PrivateIcon /> <span className="ml-2">Unlock Clue</span></button>
                         <button onClick={() => setActiveTab('publicBoard')} className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 font-bold py-3 px-4 rounded-lg transition-colors"><PublicIcon /> <span className="ml-2">Announcement</span></button>
                         <button onClick={() => setActiveTab('players')} className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 font-bold py-3 px-4 rounded-lg transition-colors"><PlayersIcon /> <span className="ml-2">Assign Character</span></button>
                     </div>
                 </div>
                 {/* Recent Activity Card */}
-                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg">
+                <div className="bg-neutral-900/50 border border-neutral-800/80 p-6 rounded-lg flex flex-col">
                     <h4 className="text-lg font-bold text-white mb-4">Recent Activity</h4>
-                    <ul className="space-y-3">
+                    <ul className="space-y-3 flex-grow">
                         {recentActivity.length > 0 ? recentActivity.map((activity, index) => (
                             <li key={index} className="text-sm">
                 {activity.type === 'public_message' && <p><span className="font-bold text-cyan-400">{activity.sender}</span> posted on the public board.</p>}
@@ -677,7 +700,7 @@ export function PlayerDashboard({ activeTab, setActiveTab }) {
     }
 
     return (
-        <div className="w-full max-w-4xl mx-auto h-screen flex flex-col">
+        <div className="w-full max-w-4xl mx-auto h-screen flex flex-col p-2 sm:p-0">
             <PlayerTopNav 
                 activeTab={activeTab} 
                 setActiveTab={handleTabChange} 
@@ -1559,4 +1582,3 @@ export function AwardsScreen({ handleFinishGame }) {
         </div>
     );
 }
-
