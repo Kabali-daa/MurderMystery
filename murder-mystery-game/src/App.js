@@ -145,6 +145,7 @@ function App() {
     const [activeTab, setActiveTab] = useState('overview');
     const [selectedChat, setSelectedChat] = useState(null);
     const [recentActivity, setRecentActivity] = useState([]);
+    const [isMuted, setIsMuted] = useState(false);
 
     // App ID from environment, with a fallback
 const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
@@ -615,7 +616,7 @@ const appId = process.env.REACT_APP_APP_ID || 'murder-mystery-game-app';
     }
 
     return (
-        <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat, appId, recentActivity, addActivity }}>
+        <AuthContext.Provider value={{ currentUser, userId, isHost, gameId, characterId, showModalMessage, showConfirmation, addNotification, unreadPublicCount, setUnreadPublicCount, unreadPrivateChats, setUnreadPrivateChats, selectedChat, setSelectedChat, appId, recentActivity, addActivity, isMuted, setIsMuted }}>
             <GameContext.Provider value={{ gameDetails, clueStates, playersInGame }}>
                 <ScriptLoader />
                 <div className="min-h-screen bg-black font-sans text-slate-200">
@@ -1362,6 +1363,21 @@ function PlayerDashboard({ activeTab, setActiveTab }) {
 
 const PlayerTopNav = ({ activeTab, setActiveTab, unreadPublic, unreadPrivate, newCluesCount, characterName, currentRound, isMuted, setIsMuted }) => {
     const navItems = [
+      const MuteButton = ({ isMuted, setIsMuted }) => {
+    return (
+        <button onClick={() => setIsMuted(!isMuted)} className="p-2 rounded-full bg-neutral-700 hover:bg-neutral-600 text-white">
+            {isMuted ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+            ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15v1a1 1 0 001 1h12a1 1 0 001-1v-1a1 1 0 00-.293-.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                </svg>
+            )}
+        </button>
+    );
+};
         { name: 'character', label: 'Character', icon: <CharactersIcon />, count: 0 },
         { name: 'clues', label: 'Clues', icon: <CluesIcon />, count: newCluesCount },
         { name: 'publicBoard', label: 'Public', icon: <PublicIcon />, count: unreadPublic },
@@ -2255,4 +2271,5 @@ function AwardsScreen({ handleFinishGame }) {
 }
 
 export default App;
+
 
