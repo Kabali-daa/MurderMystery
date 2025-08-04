@@ -108,6 +108,7 @@ function App() {
                     }, {});
                     setClueStates(newClueStates);
                 } else {
+                    // Game document has been deleted
                     setGameDetails(null);
                     setClueStates({});
                 }
@@ -128,21 +129,24 @@ function App() {
 
     // Effect to handle player character assignment and kicking
     useEffect(() => {
-        if (userId && gameId && !isHost) {
-            const myPlayerData = playersInGame.find(p => p.id === userId);
-            if (myPlayerData) {
-                if (myPlayerData.characterId !== characterId) {
-                    setCharacterId(myPlayerData.characterId || '');
-                }
-            } else if (gameDetails) {
-                // If player is not in the game's player list, reset their state
+        if (userId && gameId && !isHost && isAuthReady) {
+            const isPlayerInGame = playersInGame.some(p => p.id === userId);
+            
+            // If gameDetails becomes null, it means the game ended.
+            // Or, if playersInGame is loaded and the player is not in it, they were kicked.
+            if (gameDetails === null || (playersInGame.length > 0 && !isPlayerInGame)) {
                 setGameId('');
                 setCharacterId('');
                 const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
                 updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
+            } else if (isPlayerInGame) {
+                const myPlayerData = playersInGame.find(p => p.id === userId);
+                if (myPlayerData && myPlayerData.characterId !== characterId) {
+                    setCharacterId(myPlayerData.characterId || '');
+                }
             }
         }
-    }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId]);
+    }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId, isAuthReady]);
 
     // Effect for real-time message notifications
     useEffect(() => {
@@ -222,7 +226,6 @@ function App() {
 
     // --- Core Game Actions ---
     const handleCreateGame = async (gameIdInput, sheetUrl) => {
-        // This function's logic remains the same
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
@@ -330,7 +333,6 @@ function App() {
     };
 
     const handleJoinGame = async (inputGameId, playerName) => {
-        // This function's logic remains the same
         if (!userId || !inputGameId || !playerName.trim()) {
             showModalMessage("Please enter all required fields to join.");
             return;
@@ -388,7 +390,6 @@ function App() {
                         const subColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/${sub}`);
                         const subColSnapshot = await getDocs(subColRef);
                         for (const subDoc of subColSnapshot.docs) {
-                            // If there are nested subcollections (like messages in privateChats)
                             if (sub === 'privateChats') {
                                 const messagesInPrivateChatRef = collection(subDoc.ref, 'messages');
                                 const messagesSnapshot = await getDocs(messagesInPrivateChatRef);
@@ -400,6 +401,10 @@ function App() {
                     
                     const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
                     batch.delete(gameDocRef);
+
+                    // Also update the host's profile
+                    const hostProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+                    batch.update(hostProfileRef, { gameId: null, isHost: false, characterId: null });
 
                     await batch.commit();
 
