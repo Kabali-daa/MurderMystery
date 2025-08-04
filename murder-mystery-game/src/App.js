@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db, auth } from './firebase';
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, deleteDoc, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 
 import { AuthContext, GameContext } from './contexts';
 import { NotificationContainer, ScriptLoader, Modal, ConfirmationModal } from './components/Common';
@@ -60,9 +60,12 @@ function App() {
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
                     const userData = userDocSnap.data();
-                    setIsHost(userData.isHost || false);
+                    // CRITICAL: Only set gameId from profile if it exists.
+                    // If a game was reset, this might be stale. The game listener will correct it.
                     setGameId(userData.gameId || '');
+                    setIsHost(userData.isHost || false);
                 } else {
+                    // New user or cleared profile
                     setIsHost(false);
                     setGameId('');
                 }
@@ -90,61 +93,76 @@ function App() {
 
     // Effect for listening to game state changes
     useEffect(() => {
-        if (gameId && isAuthReady) {
-            const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
-            const unsubscribeGame = onSnapshot(gameDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    setGameDetails({
-                        characters: data.characters || {},
-                        clues: data.clues || [],
-                        currentRound: data.currentRound || 0,
-                        hostId: data.hostId,
-                        gamePhase: data.gamePhase || 'investigation',
-                    });
-                    const newClueStates = (data.clues || []).reduce((acc, clue) => {
-                        acc[clue.id] = { unlocked: clue.unlocked || false, unlockedAt: clue.unlockedAt || null };
-                        return acc;
-                    }, {});
-                    setClueStates(newClueStates);
-                } else {
-                    // Game document has been deleted
-                    setGameDetails(null);
-                    setClueStates({});
-                }
-            });
+        if (!gameId || !isAuthReady) {
+            setGameDetails(null);
+            return;
+        };
 
-            const playersColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/players`);
-            const unsubscribePlayers = onSnapshot(playersColRef, (snapshot) => {
-                const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setPlayersInGame(players);
-            });
-
-            return () => {
-                unsubscribeGame();
-                unsubscribePlayers();
-            };
-        }
-    }, [gameId, isAuthReady, appId]);
-
-    // Effect to handle player character assignment and kicking
-    useEffect(() => {
-        if (userId && gameId && !isHost && isAuthReady) {
-            const isPlayerInGame = playersInGame.some(p => p.id === userId);
-            
-            if ((gameDetails === null) || (playersInGame.length > 0 && !isPlayerInGame)) {
+        const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
+        const unsubscribeGame = onSnapshot(gameDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setGameDetails({
+                    characters: data.characters || {},
+                    clues: data.clues || [],
+                    currentRound: data.currentRound || 0,
+                    hostId: data.hostId,
+                    gamePhase: data.gamePhase || 'investigation',
+                });
+                const newClueStates = (data.clues || []).reduce((acc, clue) => {
+                    acc[clue.id] = { unlocked: clue.unlocked || false, unlockedAt: clue.unlockedAt || null };
+                    return acc;
+                }, {});
+                setClueStates(newClueStates);
+            } else {
+                // *** CRITICAL FIX ***
+                // This is the key change. If the game document is deleted (game ended),
+                // we must forcefully reset the local state for all players.
+                addNotification("The game has ended.");
                 setGameId('');
                 setCharacterId('');
-                const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-                updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
-            } else if (isPlayerInGame) {
-                const myPlayerData = playersInGame.find(p => p.id === userId);
-                if (myPlayerData && myPlayerData.characterId !== characterId) {
-                    setCharacterId(myPlayerData.characterId || '');
+                setIsHost(false);
+                setGameDetails(null);
+                if (userId) {
+                    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+                    updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
                 }
             }
+        });
+
+        const playersColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/players`);
+        const unsubscribePlayers = onSnapshot(playersColRef, (snapshot) => {
+            const players = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setPlayersInGame(players);
+
+            // Also check if the current player is still in the game list. If not, kick them out.
+            if (userId && !isHost) {
+                const amIInGame = players.some(p => p.id === userId);
+                if (players.length > 0 && !amIInGame) {
+                    setGameId('');
+                    setCharacterId('');
+                    const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
+                    updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
+                }
+            }
+        });
+
+        return () => {
+            unsubscribeGame();
+            unsubscribePlayers();
+        };
+    }, [gameId, isAuthReady, appId, userId, isHost, addNotification]);
+
+    // Effect to handle player character assignment
+    useEffect(() => {
+        if (userId && gameId && !isHost && playersInGame.length > 0) {
+            const myPlayerData = playersInGame.find(p => p.id === userId);
+            if (myPlayerData && myPlayerData.characterId !== characterId) {
+                setCharacterId(myPlayerData.characterId || '');
+            }
         }
-    }, [playersInGame, gameDetails, userId, gameId, isHost, characterId, appId, isAuthReady]);
+    }, [playersInGame, userId, gameId, isHost, characterId]);
+
 
     // Effect for real-time message notifications
     useEffect(() => {
@@ -307,10 +325,11 @@ function App() {
 
                         const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
                         await setDoc(userProfileRef, { isHost: true, gameId: gameIdInput, characterId: 'host' }, { merge: true });
-
-                        setGameId(gameIdInput);
+                        
+                        // Set state after successful creation
                         setIsHost(true);
                         setCharacterId('host');
+                        setGameId(gameIdInput);
 
                     } catch (error) {
                         showModalMessage("Error processing game data from Google Sheet. Please check the sheet format.");
@@ -352,10 +371,11 @@ function App() {
 
             const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
             await setDoc(userProfileRef, { isHost: false, gameId: inputGameId, characterId: null }, { merge: true });
-
-            setGameId(inputGameId);
+            
+            // Set state after successful join
             setIsHost(false);
-            setCharacterId(null);
+            setCharacterId('');
+            setGameId(inputGameId);
         } catch (e) {
             console.error("Error joining game: ", e);
             showModalMessage("Failed to join game. Please try again.");
@@ -406,12 +426,12 @@ function App() {
 
                     await batch.commit();
 
-                    addNotification("The game has ended and the room has been deleted!");
-
-                    // Reset local state
+                    // Local state is reset by the onSnapshot listener, but we can pre-emptively clear it
                     setGameId('');
                     setIsHost(false);
                     setCharacterId('');
+                    setGameDetails(null);
+                    setPlayersInGame([]);
 
                 } catch (e) {
                     console.error("Error finishing game:", e);
@@ -421,9 +441,10 @@ function App() {
         );
     };
 
+
     // --- Render Logic ---
     const renderContent = () => {
-        if (!gameId) {
+        if (!gameId || !gameDetails) {
             return <LandingPage onCreateGame={handleCreateGame} onJoinGame={handleJoinGame} />;
         }
         switch (gameDetails?.gamePhase) {
@@ -459,7 +480,7 @@ function App() {
                 <ScriptLoader />
                 <div className="min-h-screen bg-black font-sans text-slate-200">
                     <NotificationContainer notifications={notifications} />
-                    {isHost && gameId ? (
+                    {isHost && gameId && gameDetails ? (
                         renderContent()
                     ) : (
                         <div className="min-h-screen w-full bg-black flex flex-col items-center justify-center p-2 sm:p-4">
@@ -475,5 +496,3 @@ function App() {
 }
 
 export default App;
-
-
