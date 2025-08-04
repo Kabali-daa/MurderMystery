@@ -222,7 +222,6 @@ function App() {
 
     // --- Core Game Actions ---
     const handleCreateGame = async (gameIdInput, sheetUrl) => {
-        // This function's logic remains the same
         if (!userId) {
             showModalMessage("Please wait for authentication to complete.");
             return;
