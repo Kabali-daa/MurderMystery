@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db, auth } from './firebase';
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot, collection, writeBatch, getDocs, addDoc, serverTimestamp, query, where, deleteDoc } from 'firebase/firestore';
 
 import { AuthContext, GameContext } from './contexts';
 import { NotificationContainer, ScriptLoader, Modal, ConfirmationModal } from './components/Common';
@@ -60,14 +60,14 @@ function App() {
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
                     const userData = userDocSnap.data();
-                    // CRITICAL: Only set gameId from profile if it exists.
-                    // If a game was reset, this might be stale. The game listener will correct it.
                     setGameId(userData.gameId || '');
                     setIsHost(userData.isHost || false);
+                    setCharacterId(userData.characterId || '');
                 } else {
                     // New user or cleared profile
                     setIsHost(false);
                     setGameId('');
+                    setCharacterId('');
                 }
                 setIsAuthReady(true);
             } else {
@@ -118,14 +118,16 @@ function App() {
                 // *** CRITICAL FIX ***
                 // This is the key change. If the game document is deleted (game ended),
                 // we must forcefully reset the local state for all players.
-                addNotification("The game has ended.");
+                addNotification("The game has ended or was not found.");
                 setGameId('');
                 setCharacterId('');
                 setIsHost(false);
                 setGameDetails(null);
+                setPlayersInGame([]);
                 if (userId) {
                     const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-                    updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false });
+                    // Use update to only change these fields, in case other profile data exists
+                    updateDoc(userProfileRef, { gameId: null, characterId: null, isHost: false }).catch(e => console.error("Could not clear user profile after game end:", e));
                 }
             }
         });
@@ -139,6 +141,7 @@ function App() {
             if (userId && !isHost) {
                 const amIInGame = players.some(p => p.id === userId);
                 if (players.length > 0 && !amIInGame) {
+                    addNotification("You have been removed from the game.");
                     setGameId('');
                     setCharacterId('');
                     const userProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
@@ -389,12 +392,16 @@ function App() {
                 if (!gameId || !isHost) return;
                 
                 try {
+                    // The onSnapshot listener will handle state cleanup when the game doc is deleted.
+                    // We just need to delete the game document itself.
+                    // For a more robust cleanup, we can delete subcollections first.
+                    
                     const batch = writeBatch(db);
                     
                     const playersColRef = collection(db, `artifacts/${appId}/public/data/games/${gameId}/players`);
                     const playersSnapshot = await getDocs(playersColRef);
                     
-                    // Reset profile for each player and delete them from the game
+                    // Reset profile for each player and delete their document in the game
                     playersSnapshot.forEach((playerDoc) => {
                         const userProfileRef = doc(db, `artifacts/${appId}/users/${playerDoc.id}/profile/data`);
                         batch.update(userProfileRef, { gameId: null, isHost: false, characterId: null });
@@ -416,22 +423,12 @@ function App() {
                     const messagesSnapshot = await getDocs(messagesColRef);
                     messagesSnapshot.forEach(msgDoc => batch.delete(msgDoc.ref));
                     
-                    // Delete the main game document
-                    const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
-                    batch.delete(gameDocRef);
-
-                    // Reset the host's profile
-                    const hostProfileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-                    batch.update(hostProfileRef, { gameId: null, isHost: false, characterId: null });
-
+                    // Commit the batched writes for subcollections
                     await batch.commit();
 
-                    // Local state is reset by the onSnapshot listener, but we can pre-emptively clear it
-                    setGameId('');
-                    setIsHost(false);
-                    setCharacterId('');
-                    setGameDetails(null);
-                    setPlayersInGame([]);
+                    // Finally, delete the main game document, which will trigger the state reset for all clients.
+                    const gameDocRef = doc(db, `artifacts/${appId}/public/data/games/${gameId}`);
+                    await deleteDoc(gameDocRef);
 
                 } catch (e) {
                     console.error("Error finishing game:", e);
