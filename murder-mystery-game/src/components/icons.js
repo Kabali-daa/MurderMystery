@@ -1,11 +1,11 @@
 import React from 'react';
 
-// Base component for consistent icon sizing and styling
-// I've added a CSS drop-shadow here to replace the unreliable SVG filter
+// Base component for consistent icon sizing and styling.
+// I have removed the Tailwind CSS filter and drop-shadow classes to prevent rendering conflicts on mobile.
 const IconBase = ({ children, width = 28, height = 28 }) => (
     <div 
         style={{ width, height }} 
-        className="flex items-center justify-center filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]"
+        className="flex items-center justify-center"
     >
         {children}
     </div>
@@ -14,7 +14,6 @@ const IconBase = ({ children, width = 28, height = 28 }) => (
 export const OverviewIcon = () => (
     <IconBase>
         <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Removed filter definitions and attributes */}
             <g>
                 <rect x="4" y="4" width="11" height="11" rx="2.5" fill="#a855f7"/>
                 <rect x="4" y="17" width="11" height="11" rx="2.5" fill="#f43f5e"/>
@@ -29,7 +28,6 @@ export const PlayersIcon = () => (
     <IconBase>
         <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                {/* Gradient IDs are still needed but are unique */}
                 <linearGradient id="playerGradPlayers" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="#22d3ee"/>
                     <stop offset="100%" stopColor="#6366f1"/>
