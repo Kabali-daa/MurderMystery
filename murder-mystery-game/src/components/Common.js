@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 // Game Logo Component
 export const GameLogo = ({ className }) => (
     <img 
-        src="https://upload.wikimedia.org/wikipedia/fr/d/da/Murder_Mystery.png" 
+        src="https://i.ibb.co/ks5kVy20/Chat-GPT-Image-Aug-8-2025-05-47-52-PM.png" 
         alt="Murder Mystery Logo" 
         className={`w-48 ${className}`}
     />
